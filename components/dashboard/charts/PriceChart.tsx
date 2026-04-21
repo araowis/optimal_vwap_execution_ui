@@ -216,15 +216,8 @@ const PriceChart = React.memo(function PriceChart({
             tickFormatter={(value) => {
               const candle = chartDataWithVolume[value];
               if (!candle) return '';
+              
               const date = new Date(candle.timestamp);
-              
-              // Check if actual time part exists or if it's just midnight (daily data)
-              const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
-              
-              if (!hasTime && !isMultiDay) {
-                 return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-              }
-
               const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
               
               if (isMultiDay) {

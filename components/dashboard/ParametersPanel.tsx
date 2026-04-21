@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Play, AlertCircle, Settings, Maximize2, X } from 'lucide-react';
 import { StrategyParams } from '@/lib/types';
+import { backendService, StrategyParams as BackendStrategyParams } from '@/lib/backend-service';
 
 interface ParametersPanelProps {
   params: StrategyParams;

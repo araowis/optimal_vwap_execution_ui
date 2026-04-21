@@ -281,22 +281,21 @@ const ChartPanel = memo(function ChartPanel({
             </select>
           )}
 
-          <div className="flex items-center gap-1.5 ml-1">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Density:</span>
+          {displayData.length > 200 && (
             <select
               value={visibleDataPoints}
               onChange={(e) => setVisibleDataPoints(Number(e.target.value))}
-              className="text-xs font-semibold bg-background border border-border rounded-md px-2 py-1 focus:ring-1 focus:ring-primary outline-none transition-all"
+              className="text-xs bg-background border border-border rounded px-2 py-1"
+              title="Data Points"
             >
-              <option value={50}>50 (Ultra)</option>
-              <option value={100}>100 (Deep)</option>
-              <option value={250}>250 (Mid)</option>
-              <option value={500}>500 (Detailed)</option>
-              <option value={1000}>1000 (Wide)</option>
-              <option value={2000}>2000 (Max)</option>
-              <option value={displayData.length || 5000}>Full View</option>
+              <option value={50}>50 (Fast)</option>
+              <option value={100}>100</option>
+              <option value={200}>200 (Default)</option>
+              <option value={500}>500</option>
+              <option value={1000}>1000</option>
+              <option value={displayData.length}>All ({displayData.length})</option>
             </select>
-          </div>
+          )}
 
           <button
             onClick={() => setVolumeCurveVisible(!volumeCurveVisible)}

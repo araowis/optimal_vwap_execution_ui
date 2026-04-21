@@ -154,15 +154,10 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
     // Not needed - we use API search
   };
 
-  const handleSearch = async (query: string, target: 'suggestions' | 'watchlist') => {
+  const handleSearch = async (query: string) => {
     if (!query || query.length < 2 || !upstoxAccessToken) {
-      if (target === 'suggestions') {
-        setInstrumentSuggestions([]);
-        setShowSuggestions(false);
-      } else {
-        setWatchlistSuggestions([]);
-        setShowWatchlistSuggestions(false);
-      }
+      setInstrumentSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
 
@@ -183,64 +178,80 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
           upstoxResult.data.data.map(async (inst: any) => {
             try {
               let clearbitData = [];
+
+              // Extract main brand name (first 1-2 words, removing common suffixes)
               const extractMainName = (name: string): string => {
                 const words = name.split(' ');
                 const mainWords = words.slice(0, 2).join(' ');
+                // Remove common suffixes
                 return mainWords
                   .replace(/\s+(LTD|LIMITED|LTD\.|PVT|PRIVATE|IND|INDUSTRIES|INFRA|INFRASTRUCTURE|CORP|CORPORATION)$/gi, '')
                   .trim();
               };
+
               const mainName = extractMainName(inst.name);
               const queries = [mainName, inst.trading_symbol, inst.name].filter(Boolean);
-              for (const q of queries) {
+
+              for (const query of queries) {
                 try {
-                  const clearbitResponse = await fetch(`/api/clearbit/companies/suggest?query=${encodeURIComponent(q)}`);
+                  const clearbitResponse = await fetch(
+                    `/api/clearbit/companies/suggest?query=${encodeURIComponent(query)}`
+                  );
                   const data = await clearbitResponse.json();
+                  console.log(`Clearbit search for "${query}":`, data);
+
                   if (data && data.length > 0) {
                     clearbitData = data;
                     break;
                   }
-                } catch (e) {}
+                } catch (e) {
+                  console.warn(`Clearbit search failed for "${query}":`, e);
+                }
               }
-              return clearbitData.length > 0 ? { ...inst, company: clearbitData[0] } : inst;
-            } catch (e) { return inst; }
+
+              if (clearbitData && clearbitData.length > 0) {
+                return { ...inst, company: clearbitData[0] };
+              } else {
+                return inst;
+              }
+            } catch (clearbitError) {
+              console.warn('Clearbit search failed for', inst.name, ':', clearbitError);
+              return inst;
+            }
           })
         );
-        
-        if (target === 'suggestions') {
-          setInstrumentSuggestions(instrumentsWithCompanyInfo);
-          setShowSuggestions(true);
-        } else {
-          setWatchlistSuggestions(instrumentsWithCompanyInfo);
-          setShowWatchlistSuggestions(true);
-        }
+        setInstrumentSuggestions(instrumentsWithCompanyInfo);
+        setShowSuggestions(true);
       } else {
-        if (target === 'suggestions') {
-          setInstrumentSuggestions([]);
-          setShowSuggestions(false);
-        } else {
-          setWatchlistSuggestions([]);
-          setShowWatchlistSuggestions(false);
-        }
+        setInstrumentSuggestions([]);
+        setShowSuggestions(false);
       }
     } catch (e) {
       console.error('Instrument search failed:', e);
+      setInstrumentSuggestions([]);
+      setShowSuggestions(false);
     }
   };
 
   const handleInstrumentQueryChange = (value: string) => {
     setInstrumentQuery(value);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     searchTimeoutRef.current = setTimeout(() => {
-      handleSearch(value, 'suggestions');
+      handleSearch(value);
     }, 300);
   };
 
   const handleWatchlistSearchChange = (value: string) => {
     setWatchlistSearchQuery(value);
-    if (watchlistSearchTimeoutRef.current) clearTimeout(watchlistSearchTimeoutRef.current);
+    if (watchlistSearchTimeoutRef.current) {
+      clearTimeout(watchlistSearchTimeoutRef.current);
+    }
     watchlistSearchTimeoutRef.current = setTimeout(() => {
-      handleSearch(value, 'watchlist');
+      handleSearch(value);
+      setWatchlistSuggestions(instrumentSuggestions);
+      setShowWatchlistSuggestions(instrumentSuggestions.length > 0);
     }, 300);
   };
 
@@ -757,66 +768,54 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                   return (
                     <div 
                       key={item.instrument_key} 
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer shadow-sm ${
+                      className={`flex items-center gap-2 p-2 rounded border transition-colors cursor-pointer ${
                         isSelected 
-                          ? 'bg-primary/10 border-primary ring-1 ring-primary/20' 
-                          : 'bg-card border-border hover:border-primary/50'
+                          ? 'bg-primary text-primary-foreground border-primary' 
+                          : 'bg-secondary/30 border-border hover:bg-secondary/50'
                       }`}
                       onClick={() => {
                         setSelectedWatchlistStock(item);
-                        if (onWatchlistStockSelect) onWatchlistStockSelect(item);
+                        if (onWatchlistStockSelect) {
+                          onWatchlistStockSelect(item);
+                        }
                       }}
                     >
                       {item.company?.domain && (
-                        <div className="w-10 h-10 rounded-lg bg-secondary/50 flex items-center justify-center p-1 flex-shrink-0">
-                          <img
-                            src={`https://www.google.com/s2/favicons?domain=${item.company.domain}&sz=64`}
-                            alt={item.name}
-                            className="w-full h-full rounded"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        </div>
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${item.company.domain}&sz=24`}
+                          alt={item.name}
+                          className="w-5 h-5 rounded flex-shrink-0"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
                       )}
-                      
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className={`font-bold text-sm truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                            {item.trading_symbol}
-                          </div>
-                          <span className="px-1 py-0.5 rounded bg-secondary text-[10px] font-medium text-muted-foreground uppercase">
-                            {item.exchange}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground truncate font-medium">{item.name}</div>
+                        <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : 'text-foreground'}`}>{item.trading_symbol}</div>
+                        <div className={`text-xs truncate ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{item.name}</div>
                       </div>
-
                       <div className="text-right flex-shrink-0">
                         {priceData ? (
                           <>
-                            <div className="font-bold text-sm text-foreground">
+                            <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : priceColor}`}>
                               ₹{priceData.ltp.toFixed(2)}
                             </div>
-                            <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-block ${
-                              priceData.changePercent >= 0 
-                                ? 'bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400' 
-                                : 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400'
-                            }`}>
+                            <div className={`text-xs ${isSelected ? 'text-primary-foreground/70' : priceColor}`}>
                               {priceData.changePercent >= 0 ? '+' : ''}{priceData.changePercent.toFixed(2)}%
                             </div>
                           </>
                         ) : (
-                          <div className="w-16 h-8 bg-secondary/30 animate-pulse rounded" />
+                          <div className="text-xs text-muted-foreground">Loading...</div>
                         )}
                       </div>
-
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           removeFromWatchlist(item.instrument_key);
                         }}
-                        className="p-1 hover:bg-destructive/10 hover:text-destructive rounded-md transition-colors text-muted-foreground"
+                        className={`text-xs px-2 py-1 ${isSelected ? 'text-primary-foreground hover:text-white' : 'text-muted-foreground hover:text-destructive'}`}
                       >
-                        <X className="w-4 h-4" />
+                        ×
                       </button>
                     </div>
                   );

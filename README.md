@@ -7,11 +7,11 @@ A modern, real-time trading dashboard for executing Volume Weighted Average Pric
 ### Core Functionality
 - **Real-time Market Data Integration**: WebSocket-based streaming with Upstox API for live quotes and Level 2 market depth
 - **Historical Data Analysis**: Fetch and analyze historical candle data with customizable timeframes
-- **VWAP Strategy Execution**: Advanced VWAP calculations with configurable parameters
+- **VWAP Strategy Execution**: Advanced VWAP calculations with configurable parameters (via Java backend)
 - **Interactive Charts**: Beautiful, responsive charts with Recharts showing price, VWAP, bands, and buy signals
 - **Volume Analysis**: Volume curves and analysis with multiple visualization options
 - **Watchlist Management**: Real-time stock watchlist with price tracking and market depth
-- **Backtesting Engine**: Strategy backtesting with detailed performance metrics
+- **Backtesting Engine**: Strategy backtesting with detailed performance metrics (via Java backend)
 
 ### UI/UX Features
 - **Resizable & Collapsible Sidebars**: Flexible layout with drag-to-resize panels
@@ -23,32 +23,96 @@ A modern, real-time trading dashboard for executing Volume Weighted Average Pric
 
 ## 📋 Prerequisites
 
+### For Frontend (Next.js)
 - Node.js 18+ 
 - pnpm package manager
 - Upstox Developer Account with API access
 - Upstox Access Token (valid for 30 days)
 
+### For Backend (Java)
+- Java 17 or higher
+- Maven 3.6+
+- Historical market data CSV files
+
 ## 🛠️ Installation
 
-1. **Clone the repository**
+### 1. Clone the repository
 ```bash
 git clone https://github.com/araowis/optimal_vwap_execution.git
-cd optimal_vwap_execution/new-frontend
+cd optimal_vwap_execution
 ```
 
-2. **Install dependencies**
+### 2. Set up the Java Backend
+
+**Install Java and Maven (if not already installed):**
+- Java 17+: [Download](https://adoptium.net/)
+- Maven 3.6+: [Download](https://maven.apache.org/download.cgi)
+
+**Build the Java backend:**
+```bash
+cd optimal_vwap_execution
+mvn clean package
+```
+
+**Run the Java backend:**
+```bash
+java -jar target/vwap-execution-1.0-SNAPSHOT.jar reliance_3M_1min.csv 10000 0.05
+```
+
+This will:
+- Load historical data from `reliance_3M_1min.csv`
+- Set total quantity to 10,000 shares
+- Set participation rate to 5%
+- Start the web server on `http://localhost:4567`
+
+**Backend API Endpoints:**
+- `GET /api/summary` - Summary statistics
+- `GET /api/daily` - Daily results
+- `GET /api/chart/:date` - Chart data for specific date
+- `GET /api/pnl` - Cumulative P&L
+- `GET /api/pretrade` - Pretrade analysis
+- `GET /api/execution/:date` - Execution logs
+- `POST /api/run-strategy` - Run strategy with custom parameters
+- `GET /api/volume-curve/:date` - Volume curve prediction
+- `GET /api/bin-allocation` - Bin allocation based on volume curve
+- `GET /api/corrections/:date` - Correction logs
+
+### 3. Set up the Next.js Frontend
+
+**Navigate to frontend directory:**
+```bash
+cd new-frontend
+```
+
+**Install dependencies:**
 ```bash
 pnpm install
 ```
 
-3. **Set up environment variables**
+**Set up environment variables:**
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your Upstox credentials:
-```
+Edit `.env` and add your configuration:
+```env
 UPSTOX_ACCESS_TOKEN=your_access_token_here
+NEXT_PUBLIC_BACKEND_URL=http://localhost:4567
+```
+
+### 4. Run the Frontend
+
+**Development mode:**
+```bash
+pnpm dev
+```
+
+The app will be available at `http://localhost:3001`
+
+**Production build:**
+```bash
+pnpm build
+pnpm start
 ```
 
 ## 🔧 Configuration
@@ -65,22 +129,35 @@ UPSTOX_ACCESS_TOKEN=your_access_token_here
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `UPSTOX_ACCESS_TOKEN` | Your Upstox API access token | Yes |
+| `NEXT_PUBLIC_BACKEND_URL` | Java backend URL (default: http://localhost:4567) | No |
 
-## 🚀 Running the Application
+### Backend Configuration
 
-### Development Mode
-
+The Java backend accepts command-line arguments:
 ```bash
-pnpm dev
+java -jar target/vwap-execution-1.0-SNAPSHOT.jar [csv_path] [total_qty] [participation_rate]
 ```
 
-The app will be available at `http://localhost:3001`
+- `csv_path`: Path to historical data CSV file (default: reliance_3M_1min.csv)
+- `total_qty`: Total quantity to trade (default: 10000)
+- `participation_rate`: Participation rate as decimal (default: 0.05)
 
-### Production Build
+### Data Requirements
 
-```bash
-pnpm build
-pnpm start
+The Java backend requires historical market data in CSV format with the following columns:
+- Date/Time
+- Open
+- High
+- Low
+- Close
+- Volume
+
+Sample data format:
+```csv
+datetime,open,high,low,close,volume
+2024-01-01 09:15:00,2500.0,2510.0,2495.0,2505.0,100000
+2024-01-01 09:16:00,2505.0,2515.0,2500.0,2510.0,150000
+...
 ```
 
 ## 📁 Project Structure
@@ -130,6 +207,107 @@ new-frontend/
 ```
 
 ## 🔌 API Routes
+
+### Java Backend API Routes
+
+The Java backend provides the following REST API endpoints for strategy execution and analysis:
+
+#### `GET /api/summary`
+Get summary statistics across all trading days.
+
+**Response:**
+```json
+{
+  "totalShares": 100000,
+  "avgFillRate": 0.98,
+  "daysBelowVwap": 45,
+  "totalDays": 60,
+  "totalSavings": 15000.50,
+  "avgFillPrice": 2500.25,
+  "avgVwap": 2500.15
+}
+```
+
+#### `GET /api/daily`
+Get daily results for all trading days.
+
+**Response:**
+```json
+[
+  {
+    "date": "2024-01-01",
+    "fillRate": 0.98,
+    "avgFillPrice": 2500.25,
+    "marketVwap": 2500.15,
+    "vwapSlippageBps": -4.0,
+    "implementationShortfallBps": -5.2,
+    "implementationShortfallRupees": -130.50
+  }
+]
+```
+
+#### `GET /api/chart/:date`
+Get chart data (price, VWAP, bands, volume) for a specific date.
+
+**Parameters:**
+- `date`: Date in ISO format (e.g., "2024-01-01")
+
+**Response:**
+```json
+{
+  "labels": ["09:15", "09:16", ...],
+  "price": [2500, 2505, ...],
+  "vwap": [2500.1, 2500.15, ...],
+  "vwapUpper": [2505, 2505.5, ...],
+  "vwapLower": [2495, 2495.5, ...],
+  "volume": [100000, 150000, ...]
+}
+```
+
+#### `POST /api/run-strategy`
+Run strategy with custom parameters.
+
+**Request Body:**
+```json
+{
+  "date": "2024-01-01",
+  "quantity": 10000,
+  "participation": 0.05,
+  "lambda": 0.10,
+  "sigma": 0.0012,
+  "bins": 10,
+  "blend": 0.5,
+  "warmUpMinutes": 30,
+  "vwapWindowMinutes": 20,
+  "enableTxCosts": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "fillRate": 0.98,
+  "avgFillPrice": 2500.25,
+  "marketVwap": 2500.15,
+  "slippageBps": -4.0,
+  "implementationShortfallBps": -5.2
+}
+```
+
+#### `GET /api/volume-curve/:date`
+Get predicted volume curve for a specific date.
+
+#### `GET /api/bin-allocation`
+Get bin allocation based on volume curve.
+
+**Query Parameters:**
+- `date`: Date in ISO format
+- `bins`: Number of bins (default: 10)
+- `quantity`: Total quantity (default: 10000)
+
+#### `GET /api/corrections/:date`
+Get correction logs for parameter adjustments during execution.
 
 ### Upstox API Routes
 
