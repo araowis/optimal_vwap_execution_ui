@@ -9,20 +9,16 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query') || '';
-    const segments = searchParams.get('segments') || '';
-    const exchanges = searchParams.get('exchanges') || '';
-    const instrument_types = searchParams.get('instrument_types') || '';
-    const expiry = searchParams.get('expiry') || '';
-    const atm_offset = searchParams.get('atm_offset') || '';
+    const exchange = searchParams.get('exchange') || '';
+    const segment = searchParams.get('segment') || '';
+    const instrument_type = searchParams.get('instrument_type') || '';
 
-    const upstream = new URL('https://api-v2.upstox.com/v1/instruments/search');
+    // The user requested using: https://api.upstox.com/v2/instruments/search
+    const upstream = new URL('https://api.upstox.com/v2/instruments/search');
     if (query) upstream.searchParams.set('query', query);
-    if (segments) upstream.searchParams.set('segments', segments);
-    if (exchanges) upstream.searchParams.set('exchanges', exchanges);
-    if (records) upstream.searchParams.set('records', records);
-    if (instrument_types) upstream.searchParams.set('instrument_types', instrument_types);
-    if (expiry) upstream.searchParams.set('expiry', expiry);
-    if (atm_offset) upstream.searchParams.set('atm_offset', atm_offset);
+    if (exchange) upstream.searchParams.set('exchange', exchange);
+    if (segment) upstream.searchParams.set('segment', segment);
+    if (instrument_type) upstream.searchParams.set('instrument_type', instrument_type);
 
     const response = await fetch(upstream.toString(), {
       method: 'GET',
@@ -43,7 +39,7 @@ export async function GET(request: Request) {
 
     const data = text ? JSON.parse(text) : {};
     return NextResponse.json({ ok: true, data }, { status: 200 });
-  } catch {
+  } catch (error) {
     return NextResponse.json({ ok: false, error: 'Instrument search failed' }, { status: 200 });
   }
 }

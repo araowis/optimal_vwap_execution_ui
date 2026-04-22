@@ -23,6 +23,25 @@ interface Instrument {
   lotSize: string;
 }
 
+const highlightMatch = (text: string, query: string) => {
+  if (!query || !text) return text;
+  const regex = new RegExp(`(${query})`, 'gi');
+  const parts = String(text).split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <span key={i} className="text-primary bg-primary/20 rounded font-bold px-0.5 shadow-sm">
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+};
+
 export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWatchlistStockSelect, onUpstoxTokenChange }: DataUploadPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +182,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
 
     try {
       const upstoxResponse = await fetch(
-        `/api/upstox/instruments/search?query=${encodeURIComponent(query)}&segments=FO,EQ&exchanges=NSE&records=10`,
+        `/api/upstox/instruments/search?query=${encodeURIComponent(query)}&exchange=NSE&segment=EQ`,
         {
           method: 'GET',
           headers: {
@@ -172,25 +191,31 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
         }
       );
       const upstoxResult = await upstoxResponse.json();
+      
+      const rawItems = Array.isArray(upstoxResult.data) ? upstoxResult.data : upstoxResult.data?.data;
 
-      if (upstoxResult.ok && upstoxResult.data?.data) {
+      if (upstoxResult.ok && rawItems && Array.isArray(rawItems)) {
         const instrumentsWithCompanyInfo = await Promise.all(
-          upstoxResult.data.data.map(async (inst: any) => {
+          rawItems.slice(0, 10).map(async (inst: any) => {
             try {
               let clearbitData = [];
 
               // Extract main brand name (first 1-2 words, removing common suffixes)
               const extractMainName = (name: string): string => {
-                const words = name.split(' ');
-                const mainWords = words.slice(0, 2).join(' ');
-                // Remove common suffixes
-                return mainWords
-                  .replace(/\s+(LTD|LIMITED|LTD\.|PVT|PRIVATE|IND|INDUSTRIES|INFRA|INFRASTRUCTURE|CORP|CORPORATION)$/gi, '')
-                  .trim();
+                // Remove corporate suffixes and clean up
+                const cleaned = name.replace(/\s+(LTD|LIMITED|LTD\.|PVT|PRIVATE|IND|INDUSTRIES|INFRA|INFRASTRUCTURE|CORP|CORPORATION|CO|COMPANY|SERVICES|HOLDINGS|INVESTMENTS|ENTERPRISES|TECHNOLOGIES|FINANCE|BANK|INSURANCE|CAPITAL|STEEL|POWER|ENERGY)$/gi, '').trim();
+                
+                const words = cleaned.split(' ');
+                // For long names, take first 2 words as the brand
+                if (words.length > 2) {
+                  return words.slice(0, 2).join(' ');
+                }
+                return cleaned;
               };
 
               const mainName = extractMainName(inst.name);
-              const queries = [mainName, inst.trading_symbol, inst.name].filter(Boolean);
+              const symbolOnly = inst.trading_symbol.split('-')[0].split('_')[0]; // Remove segment/series suffixes
+              const queries = [mainName, symbolOnly, inst.name].filter(Boolean);
 
               for (const query of queries) {
                 try {
@@ -222,14 +247,17 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
         );
         setInstrumentSuggestions(instrumentsWithCompanyInfo);
         setShowSuggestions(true);
+        return instrumentsWithCompanyInfo;
       } else {
         setInstrumentSuggestions([]);
         setShowSuggestions(false);
+        return [];
       }
     } catch (e) {
       console.error('Instrument search failed:', e);
       setInstrumentSuggestions([]);
       setShowSuggestions(false);
+      return [];
     }
   };
 
@@ -248,10 +276,10 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
     if (watchlistSearchTimeoutRef.current) {
       clearTimeout(watchlistSearchTimeoutRef.current);
     }
-    watchlistSearchTimeoutRef.current = setTimeout(() => {
-      handleSearch(value);
-      setWatchlistSuggestions(instrumentSuggestions);
-      setShowWatchlistSuggestions(instrumentSuggestions.length > 0);
+    watchlistSearchTimeoutRef.current = setTimeout(async () => {
+      const results = await handleSearch(value);
+      setWatchlistSuggestions(results);
+      setShowWatchlistSuggestions(results.length > 0);
     }, 300);
   };
 
@@ -539,7 +567,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                     </button>
                   )}
                   {showSuggestions && instrumentSuggestions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-80 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl max-h-80 overflow-y-auto divide-y divide-border/50 ring-1 ring-border shadow-primary/5">
                       {instrumentSuggestions.map((inst, idx) => (
                         <button
                           key={idx}
@@ -549,35 +577,40 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                             e.stopPropagation();
                             handleSelectInstrument(inst);
                           }}
-                          className="w-full px-3 py-3 text-left text-sm hover:bg-secondary border-b border-border last:border-0 transition-colors"
+                          className="w-full relative px-3 py-2 text-left text-sm hover:bg-secondary/60 focus:bg-secondary/60 focus:outline-none transition-all group overflow-hidden"
                         >
+                          <div className="absolute inset-y-0 left-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                           <div className="flex items-center gap-3">
-                            {inst.company?.domain && (
+                            {inst.company?.logo || inst.company?.domain ? (
                               <img
-                                src={`https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=32`}
+                                src={inst.company.logo || `https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=64`}
                                 alt={inst.name}
-                                className="w-8 h-8 rounded-md flex-shrink-0"
+                                className="w-8 h-8 flex-shrink-0 object-contain"
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
                                 }}
                               />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-foreground">{inst.trading_symbol}</div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {inst.name}
-                                {inst.company?.name && inst.company.name !== inst.name && (
-                                  <span className="ml-1 text-primary">({inst.company.name})</span>
-                                )}
+                            ) : (
+                              <div className="w-8 h-8 bg-secondary flex items-center justify-center flex-shrink-0">
+                                <span className="text-muted-foreground font-semibold text-lg">{inst.trading_symbol?.[0] || '?'}</span>
                               </div>
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                <span className="inline-flex items-center gap-1">
-                                  <span className="px-1.5 py-0.5 bg-secondary rounded text-xs font-medium">{inst.exchange}</span>
-                                  <span className="px-1.5 py-0.5 bg-secondary rounded text-xs font-medium">{inst.segment}</span>
-                                  {inst.instrument_type && (
-                                    <span className="px-1.5 py-0.5 bg-secondary rounded text-xs font-medium">{inst.instrument_type}</span>
-                                  )}
-                                </span>
+                            )}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                              <div className="flex items-baseline justify-between mb-0.5">
+                                <div className="font-bold text-foreground tracking-tight truncate">
+                                  {highlightMatch(inst.trading_symbol, instrumentQuery)}
+                                </div>
+                                {inst.lot_size && <div className="text-[10px] text-muted-foreground ml-2">Lot: {inst.lot_size}</div>}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate opacity-90">
+                                {highlightMatch(inst.name, instrumentQuery)}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] uppercase font-bold tracking-wider">{inst.exchange}</span>
+                                <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.segment}</span>
+                                {inst.instrument_type && (
+                                  <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.instrument_type}</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -711,7 +744,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                   </button>
                 )}
                 {showWatchlistSuggestions && watchlistSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-80 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl max-h-80 overflow-y-auto divide-y divide-border/50 ring-1 ring-border shadow-primary/5">
                     {watchlistSuggestions.map((inst, idx) => (
                       <button
                         key={idx}
@@ -721,32 +754,40 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                           e.stopPropagation();
                           addToWatchlist(inst);
                         }}
-                        className="w-full px-3 py-3 text-left text-sm hover:bg-secondary border-b border-border last:border-0 transition-colors"
+                        className="w-full relative px-3 py-2 text-left text-sm hover:bg-secondary/60 focus:bg-secondary/60 focus:outline-none transition-all group overflow-hidden"
                       >
+                        <div className="absolute inset-y-0 left-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div className="flex items-center gap-3">
-                          {inst.company?.domain && (
+                          {inst.company?.logo || inst.company?.domain ? (
                             <img
-                              src={`https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=32`}
+                              src={inst.company.logo || `https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=64`}
                               alt={inst.name}
-                              className="w-8 h-8 rounded-md flex-shrink-0"
+                              className="w-8 h-8 flex-shrink-0 object-contain"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none';
                               }}
                             />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-foreground">{inst.trading_symbol}</div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {inst.name}
-                              {inst.company?.name && inst.company.name !== inst.name && (
-                                <span className="ml-1 text-primary">({inst.company.name})</span>
-                              )}
+                          ) : (
+                            <div className="w-8 h-8 bg-secondary flex items-center justify-center flex-shrink-0">
+                              <span className="text-muted-foreground font-semibold text-lg">{inst.trading_symbol?.[0] || '?'}</span>
                             </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              <span className="inline-flex items-center gap-1">
-                                <span className="px-1.5 py-0.5 bg-secondary rounded text-xs font-medium">{inst.exchange}</span>
-                                <span className="px-1.5 py-0.5 bg-secondary rounded text-xs font-medium">{inst.segment}</span>
-                              </span>
+                          )}
+                          <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <div className="flex items-baseline justify-between mb-0.5">
+                              <div className="font-bold text-foreground tracking-tight truncate">
+                                {highlightMatch(inst.trading_symbol, watchlistSearchQuery)}
+                              </div>
+                              {inst.lot_size && <div className="text-[10px] text-muted-foreground ml-2">Lot: {inst.lot_size}</div>}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate opacity-90">
+                              {highlightMatch(inst.name, watchlistSearchQuery)}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] uppercase font-bold tracking-wider">{inst.exchange}</span>
+                              <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.segment}</span>
+                              {inst.instrument_type && (
+                                <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.instrument_type}</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -770,7 +811,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                       key={item.instrument_key} 
                       className={`flex items-center gap-2 p-2 rounded border transition-colors cursor-pointer ${
                         isSelected 
-                          ? 'bg-primary text-primary-foreground border-primary' 
+                          ? 'bg-primary/10 border-primary/30 shadow-sm' 
                           : 'bg-secondary/30 border-border hover:bg-secondary/50'
                       }`}
                       onClick={() => {
@@ -791,21 +832,21 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : 'text-foreground'}`}>{item.trading_symbol}</div>
-                        <div className={`text-xs truncate ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{item.name}</div>
+                        <div className={`font-semibold text-xs ${isSelected ? 'text-primary' : 'text-foreground'}`}>{item.trading_symbol}</div>
+                        <div className={`text-[10px] truncate ${isSelected ? 'text-primary/70' : 'text-muted-foreground'}`}>{item.name}</div>
                       </div>
                       <div className="text-right flex-shrink-0">
                         {priceData ? (
                           <>
-                            <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : priceColor}`}>
+                            <div className={`font-semibold text-xs ${priceColor}`}>
                               ₹{priceData.ltp.toFixed(2)}
                             </div>
-                            <div className={`text-xs ${isSelected ? 'text-primary-foreground/70' : priceColor}`}>
+                            <div className={`text-[10px] ${priceColor}`}>
                               {priceData.changePercent >= 0 ? '+' : ''}{priceData.changePercent.toFixed(2)}%
                             </div>
                           </>
                         ) : (
-                          <div className="text-xs text-muted-foreground">Loading...</div>
+                          <div className="text-xs text-muted-foreground animate-pulse">Loading...</div>
                         )}
                       </div>
                       <button

@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     }
 
     const encoded = encodeURIComponent(instrumentKey);
-    const url = `https://api.upstox.com/v2/historical-candle/${encoded}/${interval}/${toDate}/${fromDate}`;
+    const url = `https://api.upstox.com/v3/historical-candle/${encoded}/${interval}/${toDate}/${fromDate}`;
 
     const response = await fetch(url, {
       method: 'GET',

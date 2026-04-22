@@ -208,6 +208,11 @@ const PriceChart = React.memo(function PriceChart({
               <stop offset="70%" stopColor={defaultPalette.price} stopOpacity={0.10} />
               <stop offset="100%" stopColor={defaultPalette.price} stopOpacity={0.02} />
             </linearGradient>
+            <linearGradient id="brushGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+              <stop offset="50%" stopColor="#8b5cf6" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.1} />
+            </linearGradient>
           </defs>
           
           <XAxis
@@ -468,15 +473,7 @@ const PriceChart = React.memo(function PriceChart({
               }
               return timeStr;
             }}
-          >
-            <defs>
-              <linearGradient id="brushGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                <stop offset="50%" stopColor="#8b5cf6" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
-          </Brush>
+          />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
