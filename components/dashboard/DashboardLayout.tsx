@@ -64,6 +64,8 @@ export default function DashboardLayout({
   });
 
   const handleDataUpload = (data: Candle[], logo?: string, name?: string) => {
+    console.log('DashboardLayout handleDataUpload called with', data.length, 'candles');
+    console.log('First candle:', data[0]);
     setCandles(data);
     setChartData([]);
     setCompanyLogo(logo || '');
@@ -83,15 +85,15 @@ export default function DashboardLayout({
     if (!upstoxAccessToken) return;
 
     try {
-      // Fetch last 7 days of 1-minute granular data for the selected stock
+      // Fetch last 30 days of historical candle data for the selected stock
       const today = new Date();
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const toDate = today.toISOString().split('T')[0];
-      const fromDate = sevenDaysAgo.toISOString().split('T')[0];
+      const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
       
-      const url = `/api/upstox/historical-candle?instrumentKey=${encodeURIComponent(stock.instrument_key)}&interval=1minute&toDate=${toDate}&fromDate=${fromDate}`;
+      const url = `/api/upstox/historical-candle?instrumentKey=${encodeURIComponent(stock.instrument_key)}&interval=day&toDate=${toDate}&fromDate=${fromDate}`;
       console.log('Fetching from:', url);
       
       const response = await fetch(url, {
@@ -113,7 +115,7 @@ export default function DashboardLayout({
           low: candle[3],
           close: candle[4],
           volume: candle[5],
-        })).reverse();
+        }));
 
         console.log('Setting candles:', candles.length, 'candles');
         console.log('First candle:', candles[0]);
@@ -133,61 +135,6 @@ export default function DashboardLayout({
       console.error('Failed to load stock data:', error);
     }
   };
-
-  // Real-time chart updates via EventSource
-  useEffect(() => {
-    if (mode === 'realtime' && selectedWatchlistStock && upstoxAccessToken) {
-      const eventSource = new EventSource(
-        `/api/upstox/stream?instrumentKey=${encodeURIComponent(selectedWatchlistStock.instrument_key)}&token=${encodeURIComponent(upstoxAccessToken)}`
-      );
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'feed') {
-            setCandles((prev) => {
-              if (prev.length === 0) return prev;
-              const lastCandle = prev[prev.length - 1];
-              const now = new Date(data.timestamp || Date.now());
-              
-              if (lastCandle.timestamp.getMinutes() === now.getMinutes() && 
-                  lastCandle.timestamp.getHours() === now.getHours() &&
-                  lastCandle.timestamp.getDate() === now.getDate()) {
-                // Update current minute candle
-                const newCandles = [...prev];
-                newCandles[newCandles.length - 1] = {
-                  ...lastCandle,
-                  close: data.ltp,
-                  high: Math.max(lastCandle.high, data.ltp),
-                  low: Math.min(lastCandle.low, data.ltp),
-                  // if volume from API is total volume, delta could be computed, else keep latest
-                  volume: data.volume || lastCandle.volume 
-                };
-                return newCandles;
-              } else {
-                // Start a new minute candle
-                const newCandle = {
-                  timestamp: now,
-                  open: data.ltp,
-                  high: data.ltp,
-                  low: data.ltp,
-                  close: data.ltp,
-                  volume: 0
-                };
-                return [...prev, newCandle];
-              }
-            });
-          }
-        } catch (err) {
-          // ignore stream parse errors
-        }
-      };
-
-      return () => {
-        eventSource.close();
-      };
-    }
-  }, [mode, selectedWatchlistStock, upstoxAccessToken]);
 
   const handleResizeLeft = (e: React.MouseEvent) => {
     setIsResizingLeft(true);
@@ -297,8 +244,7 @@ export default function DashboardLayout({
               className="bg-card rounded-l-lg border border-border flex flex-col overflow-hidden"
               style={{ width: `${leftSidebarWidth}px` }}
             >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <span className="text-xs font-medium text-muted-foreground">Left Panel</span>
+              <div className="flex items-center justify-end px-3 py-2 border-b border-border">
                 <button
                   onClick={() => setLeftSidebarCollapsed(true)}
                   className="text-muted-foreground hover:text-foreground"
@@ -363,8 +309,7 @@ export default function DashboardLayout({
               className="bg-card rounded-r-lg border border-border flex flex-col overflow-hidden"
               style={{ width: `${rightSidebarWidth}px` }}
             >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <span className="text-xs font-medium text-muted-foreground">Right Panel</span>
+              <div className="flex items-center justify-end px-3 py-2 border-b border-border">
                 <button
                   onClick={() => setRightSidebarCollapsed(true)}
                   className="text-muted-foreground hover:text-foreground"

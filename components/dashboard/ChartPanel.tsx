@@ -34,9 +34,13 @@ const ChartPanel = memo(function ChartPanel({
   timeframeMode = 'ALL',
   onTimeframeChange,
 }: ChartPanelProps) {
-  console.log('ChartPanel received candles:', candles.length, 'candles');
+  console.log('ChartPanel render - candles.length:', candles.length, 'timeframeMode:', timeframeMode);
   console.log('ChartPanel received companyLogo:', companyLogo);
   console.log('ChartPanel received instrumentName:', instrumentName);
+  if (candles.length > 0) {
+    console.log('ChartPanel first candle:', candles[0]);
+    console.log('ChartPanel last candle:', candles[candles.length - 1]);
+  }
 
   const [displayData, setDisplayData] = useState<ChartDatapoint[]>([]);
   const [hoveredCandle, setHoveredCandle] = useState<number | null>(null);
@@ -134,6 +138,11 @@ const ChartPanel = memo(function ChartPanel({
     const isMarketHour = (date: Date) => {
       const hours = date.getHours();
       const minutes = date.getMinutes();
+      
+      // If timeframe is ALL, we want to see everything
+      if (timeframeMode === 'ALL') return true;
+      
+      // Otherwise filter for standard Indian market hours
       return (hours > 9 || (hours === 9 && minutes >= 15)) && 
              (hours < 15 || (hours === 15 && minutes <= 30));
     };
@@ -142,13 +151,17 @@ const ChartPanel = memo(function ChartPanel({
     const marketHourCandles = candles.filter((c) => isMarketHour(c.timestamp));
     console.log('ChartPanel: After market hours filter, candles:', marketHourCandles.length);
     
+    // If we filtered out EVERYTHING but have raw candles, fallback to raw candles to ensure visibility
+    const baseCandles = marketHourCandles.length > 0 ? marketHourCandles : candles;
+    
     // Then filter by timeframe mode
-    if (timeframeMode === 'ALL' || !selectedKey) return marketHourCandles;
+    if (timeframeMode === 'ALL' || !selectedKey) return baseCandles;
 
     const matches = (d: Date) => {
-      if (timeframeMode === 'DAY') return d.toISOString().slice(0, 10) === selectedKey;
-      if (timeframeMode === 'MONTH') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === selectedKey;
-      if (timeframeMode === 'YEAR') return String(d.getFullYear()) === selectedKey;
+      const dateStr = d.toISOString().slice(0, 10);
+      if (timeframeMode === 'DAY') return dateStr === selectedKey;
+      if (timeframeMode === 'MONTH') return dateStr.slice(0, 7) === selectedKey;
+      if (timeframeMode === 'YEAR') return dateStr.slice(0, 4) === selectedKey;
       if (timeframeMode === 'WEEK') {
         const tmp = new Date(d);
         tmp.setHours(0, 0, 0, 0);
@@ -163,7 +176,7 @@ const ChartPanel = memo(function ChartPanel({
       return true;
     };
 
-    return marketHourCandles.filter((c) => matches(c.timestamp));
+    return baseCandles.filter((c) => matches(c.timestamp));
   }, [candles, selectedKey, timeframeMode]);
 
   useEffect(() => {

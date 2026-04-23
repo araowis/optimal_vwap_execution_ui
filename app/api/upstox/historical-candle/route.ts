@@ -13,6 +13,8 @@ export async function GET(request: Request) {
     const toDate = searchParams.get('toDate') || '';
     const fromDate = searchParams.get('fromDate') || '';
 
+    console.log(`[API Proxy] Received params:`, { instrumentKey, interval, toDate, fromDate });
+
     if (!instrumentKey || !interval || !toDate || !fromDate) {
       return NextResponse.json(
         { ok: false, error: 'Missing required query params: instrumentKey, interval, toDate, fromDate' },
@@ -21,7 +23,8 @@ export async function GET(request: Request) {
     }
 
     const encoded = encodeURIComponent(instrumentKey);
-    const url = `https://api.upstox.com/v3/historical-candle/${encoded}/${interval}/${toDate}/${fromDate}`;
+    const url = `https://api.upstox.com/v2/historical-candle/${encoded}/${interval}/${toDate}/${fromDate}`;
+    console.log(`[API Proxy] Calling Upstox v2: ${url}`);
 
     const response = await fetch(url, {
       method: 'GET',

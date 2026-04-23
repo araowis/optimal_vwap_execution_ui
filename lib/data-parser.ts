@@ -233,7 +233,7 @@ function parseTimestamp(timestampStr: string): Date {
  */
 function validateCandle(candle: Candle): boolean {
   const { open, high, low, close, volume, timestamp } = candle;
-  
+
   // Check for NaN or invalid values
   if (
     isNaN(open) ||
@@ -243,24 +243,28 @@ function validateCandle(candle: Candle): boolean {
     isNaN(volume) ||
     isNaN(timestamp.getTime())
   ) {
+    console.warn('Candle has NaN values:', candle);
     return false;
   }
-  
-  // High should be >= all other prices
-  if (high < Math.max(open, close, low)) {
+
+  // High should be >= all other prices (relaxed to allow small rounding errors)
+  if (high < Math.max(open, close, low) - 0.001) {
+    console.warn('Candle high is less than max of other prices:', candle);
     return false;
   }
-  
-  // Low should be <= all other prices
-  if (low > Math.min(open, close, high)) {
+
+  // Low should be <= all other prices (relaxed to allow small rounding errors)
+  if (low > Math.min(open, close, high) + 0.001) {
+    console.warn('Candle low is greater than min of other prices:', candle);
     return false;
   }
-  
-  // Volume should be positive
-  if (volume <= 0) {
+
+  // Volume should be non-negative (relaxed from positive to allow zero volume)
+  if (volume < 0) {
+    console.warn('Candle has negative volume:', candle);
     return false;
   }
-  
+
   return true;
 }
 

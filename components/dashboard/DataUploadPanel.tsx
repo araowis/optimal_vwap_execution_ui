@@ -361,17 +361,30 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
           );
 
           const result = await response.json();
+          console.log(`API response for ${dateStr}:`, result);
 
-          if (result.ok && result.data?.data?.candles) {
-            const dayCandles = result.data.data.candles.map((candle: any) => ({
-              timestamp: new Date(candle[0]),
-              open: candle[1],
-              high: candle[2],
-              low: candle[3],
-              close: candle[4],
-              volume: candle[5],
-            }));
-            allCandles.push(...dayCandles);
+          if (result.ok) {
+            // Robust parsing for different possible Upstox response structures (v2/v3)
+            const responseData = result.data || {};
+            const candleList = responseData.data?.candles || responseData.candles || [];
+            
+            if (candleList.length > 0) {
+              const dayCandles = candleList.map((candle: any) => ({
+                timestamp: new Date(candle[0]),
+                open: Number(candle[1]),
+                high: Number(candle[2]),
+                low: Number(candle[3]),
+                close: Number(candle[4]),
+                volume: Number(candle[5]),
+                oi: Number(candle[6] || 0),
+              }));
+              console.log(`Successfully parsed ${dayCandles.length} candles for ${dateStr}`);
+              allCandles.push(...dayCandles);
+            } else {
+              console.warn(`No candles found in response for ${dateStr}. Response:`, responseData);
+            }
+          } else {
+            console.error(`API returned error for ${dateStr}:`, result.error || 'Unknown error');
           }
         } catch (dayError) {
           console.warn(`Failed to fetch data for ${dateStr}:`, dayError);
@@ -423,17 +436,22 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
       if (file.size > 5 * 1024 * 1024) { // If file > 5MB, use streaming
         const candles = await parseCSVStreaming(file, (progress, data) => {
           setUploadProgress(progress);
+          console.log('DataUploadPanel streaming parsed', data.length, 'candles');
           onDataUpload(data); // Stream data as it's parsed
         });
         setUploadProgress(100);
+        console.log('DataUploadPanel streaming complete, total candles:', candles.length);
       } else {
         // For small files, use regular parser
         const content = await file.text();
         const candles = parseCSV(content);
         setUploadProgress(100);
+        console.log('DataUploadPanel parsed', candles.length, 'candles from CSV');
+        console.log('First candle:', candles[0]);
         onDataUpload(candles);
       }
     } catch (err) {
+      console.error('DataUploadPanel error:', err);
       setError(err instanceof Error ? err.message : 'Failed to parse CSV');
       setFileName(null);
       setUploadProgress(0);
@@ -811,7 +829,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                       key={item.instrument_key} 
                       className={`flex items-center gap-2 p-2 rounded border transition-colors cursor-pointer ${
                         isSelected 
-                          ? 'bg-primary/10 border-primary/30 shadow-sm' 
+                          ? 'bg-primary text-primary-foreground border-primary' 
                           : 'bg-secondary/30 border-border hover:bg-secondary/50'
                       }`}
                       onClick={() => {
@@ -832,21 +850,21 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className={`font-semibold text-xs ${isSelected ? 'text-primary' : 'text-foreground'}`}>{item.trading_symbol}</div>
-                        <div className={`text-[10px] truncate ${isSelected ? 'text-primary/70' : 'text-muted-foreground'}`}>{item.name}</div>
+                        <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : 'text-foreground'}`}>{item.trading_symbol}</div>
+                        <div className={`text-xs truncate ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{item.name}</div>
                       </div>
                       <div className="text-right flex-shrink-0">
                         {priceData ? (
                           <>
-                            <div className={`font-semibold text-xs ${priceColor}`}>
+                            <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : priceColor}`}>
                               ₹{priceData.ltp.toFixed(2)}
                             </div>
-                            <div className={`text-[10px] ${priceColor}`}>
+                            <div className={`text-xs ${isSelected ? 'text-primary-foreground/70' : priceColor}`}>
                               {priceData.changePercent >= 0 ? '+' : ''}{priceData.changePercent.toFixed(2)}%
                             </div>
                           </>
                         ) : (
-                          <div className="text-xs text-muted-foreground animate-pulse">Loading...</div>
+                          <div className="text-xs text-muted-foreground">Loading...</div>
                         )}
                       </div>
                       <button
