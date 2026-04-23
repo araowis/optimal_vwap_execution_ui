@@ -20,8 +20,11 @@ interface ChartPanelProps {
   onChartDataChange: (data: ChartDatapoint[]) => void;
   companyLogo?: string;
   instrumentName?: string;
+  mode?: 'backtest' | 'realtime';
   timeframeMode?: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
   onTimeframeChange?: (mode: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR') => void;
+  upstoxAccessToken?: string;
+  upstoxInstrumentKey?: string;
 }
 
 const ChartPanel = memo(function ChartPanel({
@@ -31,8 +34,11 @@ const ChartPanel = memo(function ChartPanel({
   onChartDataChange,
   companyLogo,
   instrumentName,
+  mode = 'backtest',
   timeframeMode = 'ALL',
   onTimeframeChange,
+  upstoxAccessToken,
+  upstoxInstrumentKey,
 }: ChartPanelProps) {
   console.log('ChartPanel render - candles.length:', candles.length, 'timeframeMode:', timeframeMode);
   console.log('ChartPanel received companyLogo:', companyLogo);
@@ -48,13 +54,142 @@ const ChartPanel = memo(function ChartPanel({
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [visibleDataPoints, setVisibleDataPoints] = useState(2000);
   const [volumeCurveVisible, setVolumeCurveVisible] = useState(false);
+  const [realtimeCandles, setRealtimeCandles] = useState<Candle[]>([]);
+
+  // Default to DAY timeframe in realtime mode
+  useEffect(() => {
+    if (mode === 'realtime' && timeframeMode === 'ALL') {
+      onTimeframeChange?.('DAY');
+    }
+  }, [mode, timeframeMode, onTimeframeChange]);
+
+  // Fetch historical data from Upstox based on timeframe in realtime mode
+  useEffect(() => {
+    if (mode !== 'realtime' || !upstoxAccessToken || !upstoxInstrumentKey) return;
+
+    const fetchHistoricalData = async () => {
+      try {
+        // Calculate date range based on timeframe
+        const now = new Date();
+        let fromDate = new Date();
+
+        switch (timeframeMode) {
+          case 'DAY':
+            fromDate = new Date(now);
+            fromDate.setHours(0, 0, 0, 0);
+            break;
+          case 'WEEK':
+            fromDate = new Date(now);
+            fromDate.setDate(now.getDate() - 7);
+            break;
+          case 'MONTH':
+            fromDate = new Date(now);
+            fromDate.setMonth(now.getMonth() - 1);
+            break;
+          case 'YEAR':
+            fromDate = new Date(now);
+            fromDate.setFullYear(now.getFullYear() - 1);
+            break;
+          default:
+            fromDate = new Date(now);
+            fromDate.setDate(now.getDate() - 30);
+        }
+
+        const toDate = now;
+        const fromDateStr = fromDate.toISOString().split('T')[0];
+        const toDateStr = toDate.toISOString().split('T')[0];
+
+        const response = await fetch(
+          `/api/upstox/historical-candle?instrumentKey=${encodeURIComponent(upstoxInstrumentKey)}&interval=day&toDate=${toDateStr}&fromDate=${fromDateStr}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${upstoxAccessToken}`,
+            },
+          }
+        );
+
+        const result = await response.json();
+        if (result.ok && result.data && result.data.candles) {
+          // Convert Upstox candles to our Candle format
+          const historicalCandles: Candle[] = result.data.candles.map((candle: any) => ({
+            timestamp: new Date(candle[0]),
+            open: candle[1],
+            high: candle[2],
+            low: candle[3],
+            close: candle[4],
+            volume: candle[5],
+          }));
+
+          setRealtimeCandles(historicalCandles);
+        }
+      } catch (error) {
+        console.error('Failed to fetch historical data:', error);
+      }
+    };
+
+    fetchHistoricalData();
+  }, [mode, timeframeMode, upstoxAccessToken, upstoxInstrumentKey]);
+
+  // Poll for realtime updates in realtime mode
+  useEffect(() => {
+    if (mode !== 'realtime' || !upstoxAccessToken || !upstoxInstrumentKey) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `/api/upstox/market-quote?instrument_key=${encodeURIComponent(upstoxInstrumentKey)}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
+          { method: 'GET' }
+        );
+
+        const result = await response.json();
+        if (result.status === 'success' && result.data) {
+          const dataKey = Object.keys(result.data)[0];
+          const data = result.data[dataKey];
+
+          if (data) {
+            // Create a new candle from the latest data
+            const latestCandle: Candle = {
+              timestamp: new Date(),
+              open: data.ohlc?.open || data.last_price,
+              high: data.ohlc?.high || data.last_price,
+              low: data.ohlc?.low || data.last_price,
+              close: data.last_price,
+              volume: data.volume || 0,
+            };
+
+            setRealtimeCandles((prev) => {
+              // Check if we already have a candle for today
+              const today = new Date().toDateString();
+              const existingIndex = prev.findIndex((c) => c.timestamp.toDateString() === today);
+
+              if (existingIndex >= 0) {
+                // Update existing candle
+                const updated = [...prev];
+                updated[existingIndex] = latestCandle;
+                return updated;
+              } else {
+                // Add new candle
+                return [...prev, latestCandle];
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch realtime data:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [mode, upstoxAccessToken, upstoxInstrumentKey]);
 
   const availableKeys = useMemo(() => {
-    if (candles.length === 0) return [] as string[];
+    const dataToUse = mode === 'realtime' && realtimeCandles.length > 0 ? realtimeCandles : candles;
+    if (dataToUse.length === 0) return [] as string[];
 
     const keys = new Set<string>();
 
-    for (const c of candles) {
+    for (const c of dataToUse) {
       const d = c.timestamp;
       if (timeframeMode === 'DAY') {
         keys.add(d.toISOString().slice(0, 10));
@@ -77,7 +212,7 @@ const ChartPanel = memo(function ChartPanel({
     }
 
     return Array.from(keys).sort();
-  }, [candles, timeframeMode]);
+  }, [candles, realtimeCandles, mode, timeframeMode]);
 
   useEffect(() => {
     if (timeframeMode === 'ALL') {
@@ -94,9 +229,17 @@ const ChartPanel = memo(function ChartPanel({
     setSelectedKey((prev) => (prev && availableKeys.includes(prev) ? prev : availableKeys[availableKeys.length - 1]));
   }, [availableKeys, timeframeMode]);
 
+  // Combine candles with realtime candles in realtime mode
+  const combinedCandles = useMemo(() => {
+    if (mode === 'realtime' && realtimeCandles.length > 0) {
+      return realtimeCandles;
+    }
+    return candles;
+  }, [mode, realtimeCandles, candles]);
+
   const filteredCandles = useMemo(() => {
-    console.log('ChartPanel filteredCandles calculation, candles.length:', candles.length);
-    if (candles.length === 0) return [] as Candle[];
+    console.log('ChartPanel filteredCandles calculation, combinedCandles.length:', combinedCandles.length);
+    if (combinedCandles.length === 0) return [] as Candle[];
     
     // Check if candles are daily (timestamp at midnight) or intraday
     const isDailyCandle = (date: Date) => {
@@ -106,12 +249,12 @@ const ChartPanel = memo(function ChartPanel({
     };
     
     // If all candles are daily, skip market hours filter
-    const allDaily = candles.every((c) => isDailyCandle(c.timestamp));
+    const allDaily = combinedCandles.every((c) => isDailyCandle(c.timestamp));
     
     if (allDaily) {
       console.log('ChartPanel: All candles are daily, skipping market hours filter');
       // Filter by timeframe mode for daily candles
-      if (timeframeMode === 'ALL' || !selectedKey) return candles;
+      if (timeframeMode === 'ALL' || !selectedKey) return combinedCandles;
 
       const matches = (d: Date) => {
         if (timeframeMode === 'DAY') return d.toISOString().slice(0, 10) === selectedKey;
@@ -131,7 +274,7 @@ const ChartPanel = memo(function ChartPanel({
         return true;
       };
 
-      return candles.filter((c) => matches(c.timestamp));
+      return combinedCandles.filter((c) => matches(c.timestamp));
     }
     
     // Filter for market hours (9:15 AM to 3:30 PM IST) for intraday candles
@@ -148,11 +291,11 @@ const ChartPanel = memo(function ChartPanel({
     };
 
     // First filter by market hours
-    const marketHourCandles = candles.filter((c) => isMarketHour(c.timestamp));
+    const marketHourCandles = combinedCandles.filter((c) => isMarketHour(c.timestamp));
     console.log('ChartPanel: After market hours filter, candles:', marketHourCandles.length);
-    
+
     // If we filtered out EVERYTHING but have raw candles, fallback to raw candles to ensure visibility
-    const baseCandles = marketHourCandles.length > 0 ? marketHourCandles : candles;
+    const baseCandles = marketHourCandles.length > 0 ? marketHourCandles : combinedCandles;
     
     // Then filter by timeframe mode
     if (timeframeMode === 'ALL' || !selectedKey) return baseCandles;
@@ -251,14 +394,14 @@ const ChartPanel = memo(function ChartPanel({
             <img
               src={companyLogo}
               alt={instrumentName || 'Company Logo'}
-              className="w-8 h-8 rounded-md flex-shrink-0"
+              className="w-10 h-10 rounded-lg flex-shrink-0"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
           )}
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Price & VWAP Analysis</h2>
+            <h2 className="text-lg font-bold text-foreground">{instrumentName || 'Price & VWAP Analysis'}</h2>
             <span className="text-xs text-muted-foreground">
               {filteredCandles.length} candles ({sampledDisplayData.length} displayed) • {customizationPrefs.chartPeriod}
             </span>

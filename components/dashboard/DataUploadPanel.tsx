@@ -92,25 +92,43 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
     const fetchWatchlistPrices = async () => {
       try {
         const keys = watchlist.map(item => encodeURIComponent(item.instrument_key)).join(',');
+        console.log('Fetching watchlist prices for keys:', keys);
         const response = await fetch(
           `/api/upstox/market-quote?instrument_key=${keys}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
           { method: 'GET' }
         );
         const result = await response.json();
-        
+        console.log('Watchlist prices response:', JSON.stringify(result, null, 2));
+
         if (result.status === 'success' && result.data) {
           const newPrices: Record<string, any> = {};
-          Object.entries(result.data).forEach(([key, data]: [string, any]) => {
-            newPrices[key] = {
-              ltp: data.last_price || 0,
-              change: data.net_change || 0,
-              changePercent: data.ohlc ? ((data.last_price - data.ohlc.close) / data.ohlc.close) * 100 : 0
-            };
+          // Map the returned data keys to the watchlist instrument keys
+          watchlist.forEach((item) => {
+            // Try to find matching data by checking all keys in the response
+            const dataKey = Object.keys(result.data).find((key) =>
+              key.includes(item.trading_symbol) || key.includes(item.instrument_key.split('|')[1])
+            );
+            if (dataKey && result.data[dataKey]) {
+              const data = result.data[dataKey];
+              // Calculate percentage using net_change: Previous Close = last_price - net_change
+              // % Change = (net_change / Previous Close) * 100
+              const previousClose = data.last_price - data.net_change;
+              const changePercent = previousClose !== 0
+                ? (data.net_change / previousClose) * 100
+                : 0;
+              newPrices[item.instrument_key] = {
+                ltp: data.last_price || 0,
+                change: data.net_change || 0,
+                changePercent: changePercent
+              };
+            }
           });
           setWatchlistPrices(newPrices);
+        } else {
+          console.warn('Watchlist API returned non-success or no data:', result);
         }
       } catch (e) {
-        console.warn('Failed to fetch watchlist prices:', e);
+        console.error('Failed to fetch watchlist prices:', e);
       }
     };
 
@@ -761,7 +779,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                     ×
                   </button>
                 )}
-                {showWatchlistSuggestions && watchlistSuggestions.length > 0 && (
+                {showWatchlistSuggestions && watchlistSuggestions && watchlistSuggestions.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl max-h-80 overflow-y-auto divide-y divide-border/50 ring-1 ring-border shadow-primary/5">
                     {watchlistSuggestions.map((inst, idx) => (
                       <button
@@ -825,12 +843,12 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                   const priceColor = priceData?.changePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
                   
                   return (
-                    <div 
-                      key={item.instrument_key} 
-                      className={`flex items-center gap-2 p-2 rounded border transition-colors cursor-pointer ${
-                        isSelected 
-                          ? 'bg-primary text-primary-foreground border-primary' 
-                          : 'bg-secondary/30 border-border hover:bg-secondary/50'
+                    <div
+                      key={item.instrument_key}
+                      className={`flex items-center gap-2 p-2 rounded-md border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-primary/15 to-primary/5 border-primary/50 shadow-sm'
+                          : 'bg-secondary/10 border-border hover:bg-secondary/20 hover:border-border/50'
                       }`}
                       onClick={() => {
                         setSelectedWatchlistStock(item);
@@ -841,30 +859,35 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                     >
                       {item.company?.domain && (
                         <img
-                          src={`https://www.google.com/s2/favicons?domain=${item.company.domain}&sz=24`}
+                          src={`https://www.google.com/s2/favicons?domain=${item.company.domain}&sz=32`}
                           alt={item.name}
-                          className="w-5 h-5 rounded flex-shrink-0"
+                          className="w-8 h-8 rounded flex-shrink-0"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                           }}
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : 'text-foreground'}`}>{item.trading_symbol}</div>
-                        <div className={`text-xs truncate ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{item.name}</div>
+                        <div className="font-semibold text-xs text-foreground">{item.trading_symbol}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.name}</div>
                       </div>
-                      <div className="text-right flex-shrink-0">
+                      <div className="text-right flex-shrink-0 min-w-[90px]">
                         {priceData ? (
                           <>
-                            <div className={`font-semibold text-xs ${isSelected ? 'text-primary-foreground' : priceColor}`}>
+                            <div className={`font-semibold text-sm ${priceColor}`}>
                               ₹{priceData.ltp.toFixed(2)}
                             </div>
-                            <div className={`text-xs ${isSelected ? 'text-primary-foreground/70' : priceColor}`}>
-                              {priceData.changePercent >= 0 ? '+' : ''}{priceData.changePercent.toFixed(2)}%
+                            <div className={`flex items-center justify-end gap-0.5 text-[10px] font-medium ${priceColor}`}>
+                              <span className="px-1 py-0.5 rounded bg-current/10">
+                                {priceData.change >= 0 ? '+' : ''}{priceData.change.toFixed(2)}
+                              </span>
+                              <span>
+                                ({priceData.changePercent >= 0 ? '+' : ''}{priceData.changePercent.toFixed(2)}%)
+                              </span>
                             </div>
                           </>
                         ) : (
-                          <div className="text-xs text-muted-foreground">Loading...</div>
+                          <div className="text-[10px] text-muted-foreground font-medium animate-pulse">Loading...</div>
                         )}
                       </div>
                       <button
@@ -872,7 +895,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                           e.stopPropagation();
                           removeFromWatchlist(item.instrument_key);
                         }}
-                        className={`text-xs px-2 py-1 ${isSelected ? 'text-primary-foreground hover:text-white' : 'text-muted-foreground hover:text-destructive'}`}
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all p-1 rounded"
                       >
                         ×
                       </button>

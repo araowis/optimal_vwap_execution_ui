@@ -48,38 +48,60 @@ export default function StatusIndicator() {
     // Check Backend API
     try {
       const backendRes = await fetch('/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
-      setStatuses(prev => prev.map(s => 
-        s.name === 'Backend API' 
-          ? { ...s, status: backendRes.ok ? 'connected' : 'disconnected', lastChecked: now }
+      setStatuses(prev => prev.map(s =>
+        s.name === 'Backend API'
+          ? { ...s, status: backendRes.ok ? 'connected' : 'disconnected', lastChecked: now, details: backendRes.ok ? 'API responding' : 'API not responding' }
           : s
       ));
     } catch {
-      setStatuses(prev => prev.map(s => 
-        s.name === 'Backend API' 
+      setStatuses(prev => prev.map(s =>
+        s.name === 'Backend API'
           ? { ...s, status: 'disconnected', lastChecked: now, details: 'Connection failed' }
           : s
       ));
     }
 
-    // Check Upstox API (from localStorage)
-    const upstoxConfig = localStorage.getItem('upstox-config');
-    setStatuses(prev => prev.map(s => 
-      s.name === 'Upstox API' 
-        ? { ...s, status: upstoxConfig ? 'connected' : 'disconnected', lastChecked: now, details: upstoxConfig ? 'API configured' : 'Not configured' }
-        : s
-    ));
+    // Check Upstox API (check actual health endpoint)
+    const upstoxToken = localStorage.getItem('upstox-access-token');
+    if (upstoxToken) {
+      try {
+        const upstoxRes = await fetch('/api/upstox/health', {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${upstoxToken}` },
+          signal: AbortSignal.timeout(5000)
+        });
+        setStatuses(prev => prev.map(s =>
+          s.name === 'Upstox API'
+            ? { ...s, status: upstoxRes.ok ? 'connected' : 'disconnected', lastChecked: now, details: upstoxRes.ok ? 'Token valid' : 'Token invalid' }
+            : s
+        ));
+      } catch {
+        setStatuses(prev => prev.map(s =>
+          s.name === 'Upstox API'
+            ? { ...s, status: 'disconnected', lastChecked: now, details: 'Connection failed' }
+            : s
+        ));
+      }
+    } else {
+      setStatuses(prev => prev.map(s =>
+        s.name === 'Upstox API'
+          ? { ...s, status: 'disconnected', lastChecked: now, details: 'No token configured' }
+          : s
+      ));
+    }
 
     // Check Correction Engine (mock for now)
-    setStatuses(prev => prev.map(s => 
-      s.name === 'Correction Engine' 
+    setStatuses(prev => prev.map(s =>
+      s.name === 'Correction Engine'
         ? { ...s, status: 'connected', lastChecked: now, details: 'Engine running' }
         : s
     ));
 
-    // Check WebSocket (mock for now)
-    setStatuses(prev => prev.map(s => 
-      s.name === 'WebSocket' 
-        ? { ...s, status: 'disconnected', lastChecked: now, details: 'Not connected' }
+    // Check WebSocket (check if any MarketDepth is connected via custom event)
+    const wsConnected = localStorage.getItem('websocket-connected') === 'true';
+    setStatuses(prev => prev.map(s =>
+      s.name === 'WebSocket'
+        ? { ...s, status: wsConnected ? 'connected' : 'disconnected', lastChecked: now, details: wsConnected ? 'Streaming active' : 'Not connected' }
         : s
     ));
   };

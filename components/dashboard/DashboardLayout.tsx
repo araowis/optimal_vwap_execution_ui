@@ -292,8 +292,11 @@ export default function DashboardLayout({
             onChartDataChange={setChartData}
             companyLogo={companyLogo}
             instrumentName={instrumentName}
+            mode={mode}
             timeframeMode={chartTimeframeMode}
             onTimeframeChange={setChartTimeframeMode}
+            upstoxAccessToken={upstoxAccessToken || undefined}
+            upstoxInstrumentKey={selectedWatchlistStock?.instrument_key}
           />
         </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMarketDepth } from '@/lib/upstox-market-depth';
+import { RefreshCw } from 'lucide-react';
 
 interface MarketDepthProps {
   accessToken: string;
@@ -15,7 +16,7 @@ export default function MarketDepth({
   mode = 'full',
   enabled = true,
 }: MarketDepthProps) {
-  const { depthData, isConnected, error, refresh } = useMarketDepth({
+  const { depthData, isConnected, error, refresh, isRefreshing } = useMarketDepth({
     accessToken,
     instrumentKey,
     mode,
@@ -36,14 +37,12 @@ export default function MarketDepth({
         <h3 className="text-sm font-semibold text-foreground">Market Depth</h3>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-xs text-muted-foreground">
-            {isConnected ? 'Connected' : 'Disconnected'}
-          </span>
           <button
             onClick={refresh}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            disabled={isRefreshing}
+            className={`text-muted-foreground hover:text-foreground transition-colors ${isRefreshing ? 'animate-spin' : ''}`}
           >
-            Refresh
+            <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -66,12 +65,24 @@ export default function MarketDepth({
             <div>
               <h4 className="text-xs font-medium text-green-600 dark:text-green-400 mb-2">Bids</h4>
               <div className="space-y-1">
-                {depthData.bids.map((bid, index) => (
-                  <div key={index} className="flex justify-between text-xs">
-                    <span className="text-foreground">{bid.price.toFixed(2)}</span>
-                    <span className="text-muted-foreground">{bid.quantity}</span>
-                  </div>
-                ))}
+                {(() => {
+                  const maxBidQuantity = Math.max(...depthData.bids.map(b => b.quantity), 1);
+                  return depthData.bids.map((bid, index) => {
+                    const barWidth = (bid.quantity / maxBidQuantity) * 100;
+                    return (
+                      <div key={index} className="relative">
+                        <div
+                          className="absolute right-0 top-0 bottom-0 bg-green-500/10"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                        <div className="relative flex justify-between text-xs">
+                          <span className="text-foreground">{bid.price.toFixed(2)}</span>
+                          <span className="text-muted-foreground">{bid.quantity}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
                 {depthData.bids.length === 0 && (
                   <p className="text-xs text-muted-foreground">No bids</p>
                 )}
@@ -82,12 +93,24 @@ export default function MarketDepth({
             <div>
               <h4 className="text-xs font-medium text-red-600 dark:text-red-400 mb-2">Asks</h4>
               <div className="space-y-1">
-                {depthData.asks.map((ask, index) => (
-                  <div key={index} className="flex justify-between text-xs">
-                    <span className="text-foreground">{ask.price.toFixed(2)}</span>
-                    <span className="text-muted-foreground">{ask.quantity}</span>
-                  </div>
-                ))}
+                {(() => {
+                  const maxAskQuantity = Math.max(...depthData.asks.map(a => a.quantity), 1);
+                  return depthData.asks.map((ask, index) => {
+                    const barWidth = (ask.quantity / maxAskQuantity) * 100;
+                    return (
+                      <div key={index} className="relative">
+                        <div
+                          className="absolute right-0 top-0 bottom-0 bg-red-500/10"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                        <div className="relative flex justify-between text-xs">
+                          <span className="text-foreground">{ask.price.toFixed(2)}</span>
+                          <span className="text-muted-foreground">{ask.quantity}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
                 {depthData.asks.length === 0 && (
                   <p className="text-xs text-muted-foreground">No asks</p>
                 )}

@@ -40,6 +40,7 @@ export function useMarketDepth({
   const [depthData, setDepthData] = useState<MarketDepthData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchMarketDepth = useCallback(async () => {
     if (!accessToken || !instrumentKey || !enabled) return;
@@ -47,7 +48,9 @@ export function useMarketDepth({
     try {
       setError(null);
       setIsConnected(true);
-      
+      setIsRefreshing(true);
+      localStorage.setItem('websocket-connected', 'true');
+
       const response = await fetch(
         `/api/upstox/market-quote?instrument_key=${encodeURIComponent(instrumentKey)}&access_token=${encodeURIComponent(accessToken)}`,
         {
@@ -66,13 +69,13 @@ export function useMarketDepth({
         // while we might be searching by token (e.g. NSE_EQ|INE002A01018).
         // Iterate through values to find the one with the matching instrument_token.
         let instrumentData = result.data[instrumentKey];
-        
+
         if (!instrumentData) {
           instrumentData = Object.values(result.data).find(
             (item: any) => item.instrument_token === instrumentKey
           );
         }
-        
+
         if (!instrumentData) {
           const availableKeys = Object.keys(result.data);
           const errorMsg = `No instrument data found for key: ${instrumentKey}. Available: ${availableKeys.join(', ')}`;
@@ -83,13 +86,14 @@ export function useMarketDepth({
               description: `Found ${availableKeys.length} items but none match ${instrumentKey}`,
             });
           }
+          setIsRefreshing(false);
           return;
         }
-        
+
         if (instrumentData) {
           const bids: Array<{ price: number; quantity: number; orders: number }> = [];
           const asks: Array<{ price: number; quantity: number; orders: number }> = [];
-          
+
           // Parse depth data from REST API response
           if (instrumentData.depth) {
             // Buy orders (bids) - first 5 levels
@@ -104,7 +108,7 @@ export function useMarketDepth({
                 }
               });
             }
-            
+
             // Sell orders (asks) - first 5 levels
             if (instrumentData.depth.sell) {
               instrumentData.depth.sell.forEach((ask: any) => {
@@ -118,7 +122,7 @@ export function useMarketDepth({
               });
             }
           }
-          
+
           const newData: MarketDepthData = {
             instrumentKey,
             bids,
@@ -137,13 +141,13 @@ export function useMarketDepth({
             totalBuyQuantity: instrumentData.total_buy_quantity,
             totalSellQuantity: instrumentData.total_sell_quantity,
           };
-          
+
           console.log('Setting depth data:', {
             ltp: newData.ltp,
             bids: bids.length,
             asks: asks.length,
           });
-          
+
           setDepthData(newData);
         }
       } else {
@@ -157,12 +161,16 @@ export function useMarketDepth({
         description: errorMsg,
       });
       setIsConnected(false);
+      localStorage.setItem('websocket-connected', 'false');
+    } finally {
+      setIsRefreshing(false);
     }
   }, [accessToken, instrumentKey, enabled]);
 
   useEffect(() => {
     if (!enabled) {
       setIsConnected(false);
+      localStorage.setItem('websocket-connected', 'false');
       return;
     }
 
@@ -177,6 +185,7 @@ export function useMarketDepth({
     return () => {
       clearInterval(interval);
       setIsConnected(false);
+      localStorage.setItem('websocket-connected', 'false');
     };
   }, [fetchMarketDepth, pollInterval, enabled]);
 
@@ -185,5 +194,6 @@ export function useMarketDepth({
     isConnected,
     error,
     refresh: fetchMarketDepth,
+    isRefreshing,
   };
 }
