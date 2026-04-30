@@ -112,7 +112,7 @@ const PriceChart = React.memo(function PriceChart({
       const isDaily = d.candle.timestamp.getHours() === 0 && d.candle.timestamp.getMinutes() === 0;
       return {
         index,
-        id: `candle-${index}-${d.candle.timestamp.getTime()}`, // unique key to prevent React errors
+        id: `candle-${index}-${d.candle.timestamp.getTime()}-${d.candle.close}`, // unique key to prevent React errors
         timestamp: d.candle.timestamp.getTime(),
         timestampStr: isDaily ? d.candle.timestamp.toLocaleDateString() : d.candle.timestamp.toLocaleTimeString(),
         isDaily,
@@ -132,11 +132,12 @@ const PriceChart = React.memo(function PriceChart({
       };
     });
 
-    // Filter out any duplicate timestamps to prevent Recharts key errors
-    const seen = new Set<number>();
+    // Filter out any duplicate entries to prevent Recharts key errors
+    const seen = new Set<string>();
     return mapped.filter((d) => {
-      if (seen.has(d.timestamp)) return false;
-      seen.add(d.timestamp);
+      const key = `${d.index}-${d.timestamp}-${d.close}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
   }, [data]);
@@ -161,6 +162,20 @@ const PriceChart = React.memo(function PriceChart({
   const maxVolume = useMemo(() => {
     if (!data.length) return 0;
     return Math.max(...data.map((d) => d.candle.volume));
+  }, [data]);
+
+  const priceDomain = useMemo(() => {
+    if (!data.length) return ['auto', 'auto'] as any;
+    const lows = data.map((d) => Number(d.candle.low));
+    const highs = data.map((d) => Number(d.candle.high));
+    const min = Math.min(...lows);
+    const max = Math.max(...highs);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return ['auto', 'auto'] as any;
+    if (min === max) {
+      const pad = Math.max(0.01, Math.abs(min) * 0.001);
+      return [min - pad, max + pad] as [number, number];
+    }
+    return [min, max] as [number, number];
   }, [data]);
 
   // Check if the data spans multiple days
@@ -240,7 +255,7 @@ const PriceChart = React.memo(function PriceChart({
           />
           
           <YAxis
-            domain={['auto', 'auto']}
+            domain={priceDomain}
             tickFormatter={(value) => value.toFixed(2)}
             stroke="var(--foreground)"
             fontSize={12}
@@ -256,7 +271,7 @@ const PriceChart = React.memo(function PriceChart({
                 if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
                 return String(v);
               }}
-              domain={[0, Math.ceil(maxVolume * 1.1)]}
+              domain={[0, Math.max(1, Math.ceil(maxVolume * 1.1))]}
               stroke="var(--foreground)"
               fontSize={11}
               width={40}

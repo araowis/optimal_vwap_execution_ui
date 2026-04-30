@@ -31,8 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('Clearbit response for query:', query, 'results:', data.length);
-    
+
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
     console.error('Error fetching Clearbit suggestions:', error);

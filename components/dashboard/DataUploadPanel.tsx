@@ -12,6 +12,7 @@ interface DataUploadPanelProps {
   mode?: 'backtest' | 'realtime';
   onWatchlistStockSelect?: (stock: any) => void;
   onUpstoxTokenChange?: (token: string | null) => void;
+  wsConnected?: boolean;
 }
 
 interface Instrument {
@@ -42,7 +43,13 @@ const highlightMatch = (text: string, query: string) => {
   );
 };
 
-export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWatchlistStockSelect, onUpstoxTokenChange }: DataUploadPanelProps) {
+export default function DataUploadPanel({
+  onDataUpload,
+  mode = 'backtest',
+  onWatchlistStockSelect,
+  onUpstoxTokenChange,
+  wsConnected = false,
+}: DataUploadPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -60,7 +67,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [interval, setInterval] = useState('day');
+  const [interval, setIntervalValue] = useState('day');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -73,7 +80,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
   const [watchlistSuggestions, setWatchlistSuggestions] = useState<any[]>([]);
   const [showWatchlistSuggestions, setShowWatchlistSuggestions] = useState(false);
   const watchlistSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('upstox-access-token');
@@ -90,15 +97,16 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
     }
 
     const fetchWatchlistPrices = async () => {
+      if (!upstoxAccessToken || watchlist.length === 0) return;
+      // Skip polling if WebSocket is connected (for realtime mode)
+      if (mode === 'realtime' && wsConnected) return;
       try {
         const keys = watchlist.map(item => encodeURIComponent(item.instrument_key)).join(',');
-        console.log('Fetching watchlist prices for keys:', keys);
         const response = await fetch(
           `/api/upstox/market-quote?instrument_key=${keys}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
           { method: 'GET' }
         );
         const result = await response.json();
-        console.log('Watchlist prices response:', JSON.stringify(result, null, 2));
 
         if (result.status === 'success' && result.data) {
           const newPrices: Record<string, any> = {};
@@ -125,7 +133,6 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
           });
           setWatchlistPrices(newPrices);
         } else {
-          console.warn('Watchlist API returned non-success or no data:', result);
         }
       } catch (e) {
         console.error('Failed to fetch watchlist prices:', e);
@@ -136,17 +143,16 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
     fetchWatchlistPrices();
 
     // Set up interval
-    pollingIntervalRef.current = setInterval(fetchWatchlistPrices, 3000);
+    pollingIntervalRef.current = setInterval(fetchWatchlistPrices, 4000);
 
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
-  }, [mode, upstoxAccessToken, watchlist]);
+  }, [mode, upstoxAccessToken, watchlist, wsConnected]);
 
   const validateToken = async (token: string) => {
     setTokenValidating(true);
     try {
-      console.log('Validating token, token length:', token.length);
       const response = await fetch('/api/upstox/health', {
         method: 'GET',
         headers: {
@@ -154,7 +160,6 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
         },
       });
       const result = await response.json();
-      console.log('Health check result:', result);
       if (result.ok) {
         setUpstoxAccessToken(token);
         setUpstoxConnected(true);
@@ -162,7 +167,6 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
         if (onUpstoxTokenChange) {
           onUpstoxTokenChange(token);
         }
-        console.log('Token validated successfully');
       } else {
         localStorage.removeItem('upstox-access-token');
         setUpstoxAccessToken(null);
@@ -170,10 +174,8 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
         if (onUpstoxTokenChange) {
           onUpstoxTokenChange(null);
         }
-        console.log('Token validation failed');
       }
     } catch (e) {
-      console.warn('Failed to validate token:', e);
       localStorage.removeItem('upstox-access-token');
       setUpstoxAccessToken(null);
       setUpstoxConnected(false);
@@ -195,7 +197,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
     if (!query || query.length < 2 || !upstoxAccessToken) {
       setInstrumentSuggestions([]);
       setShowSuggestions(false);
-      return;
+      return [];
     }
 
     try {
@@ -241,14 +243,12 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                     `/api/clearbit/companies/suggest?query=${encodeURIComponent(query)}`
                   );
                   const data = await clearbitResponse.json();
-                  console.log(`Clearbit search for "${query}":`, data);
 
                   if (data && data.length > 0) {
                     clearbitData = data;
                     break;
                   }
                 } catch (e) {
-                  console.warn(`Clearbit search failed for "${query}":`, e);
                 }
               }
 
@@ -315,13 +315,10 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
   };
 
   const handleSelectInstrument = (instrument: any) => {
-    console.log('Selected instrument:', instrument);
     setInstrumentKey(instrument.instrument_key);
     setInstrumentQuery(instrument.trading_symbol);
     setSelectedInstrument(instrument);
     setShowSuggestions(false);
-    console.log('instrumentKey set to:', instrument.instrument_key);
-    console.log('selectedInstrument set to:', instrument);
   };
 
   const handleImportFromUpstox = async () => {
@@ -379,7 +376,6 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
           );
 
           const result = await response.json();
-          console.log(`API response for ${dateStr}:`, result);
 
           if (result.ok) {
             // Robust parsing for different possible Upstox response structures (v2/v3)
@@ -396,16 +392,12 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
                 volume: Number(candle[5]),
                 oi: Number(candle[6] || 0),
               }));
-              console.log(`Successfully parsed ${dayCandles.length} candles for ${dateStr}`);
               allCandles.push(...dayCandles);
             } else {
-              console.warn(`No candles found in response for ${dateStr}. Response:`, responseData);
             }
           } else {
-            console.error(`API returned error for ${dateStr}:`, result.error || 'Unknown error');
           }
         } catch (dayError) {
-          console.warn(`Failed to fetch data for ${dateStr}:`, dayError);
         }
       }
 
@@ -454,18 +446,14 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
       if (file.size > 5 * 1024 * 1024) { // If file > 5MB, use streaming
         const candles = await parseCSVStreaming(file, (progress, data) => {
           setUploadProgress(progress);
-          console.log('DataUploadPanel streaming parsed', data.length, 'candles');
           onDataUpload(data); // Stream data as it's parsed
         });
         setUploadProgress(100);
-        console.log('DataUploadPanel streaming complete, total candles:', candles.length);
       } else {
         // For small files, use regular parser
         const content = await file.text();
         const candles = parseCSV(content);
         setUploadProgress(100);
-        console.log('DataUploadPanel parsed', candles.length, 'candles from CSV');
-        console.log('First candle:', candles[0]);
         onDataUpload(candles);
       }
     } catch (err) {
@@ -723,7 +711,7 @@ export default function DataUploadPanel({ onDataUpload, mode = 'backtest', onWat
               <label className="text-xs text-muted-foreground mb-1 block">Interval</label>
               <select
                 value={interval}
-                onChange={(e) => setInterval(e.target.value)}
+                onChange={(e) => setIntervalValue(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
                 disabled={loading}
               >

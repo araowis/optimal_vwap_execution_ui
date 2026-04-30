@@ -47,7 +47,7 @@ export default function StatusIndicator() {
 
     // Check Backend API
     try {
-      const backendRes = await fetch('/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
+      const backendRes = await fetch('/api/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
       setStatuses(prev => prev.map(s =>
         s.name === 'Backend API'
           ? { ...s, status: backendRes.ok ? 'connected' : 'disconnected', lastChecked: now, details: backendRes.ok ? 'API responding' : 'API not responding' }

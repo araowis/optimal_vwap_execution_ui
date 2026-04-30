@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   try {
     const auth = request.headers.get('authorization') || request.headers.get('Authorization');
-    console.log('Authorization header:', auth ? 'Present' : 'Missing');
+    // console.log('Authorization header:', auth ? 'Present' : 'Missing');
     
     if (!auth || !auth.toLowerCase().startsWith('bearer ')) {
       console.log('Invalid authorization header format');
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     }
 
     const url = 'https://api.upstox.com/v3/feed/market-data-feed/authorize';
-    console.log('Requesting authorization from:', url);
+    // console.log('Requesting authorization from:', url);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -23,8 +23,10 @@ export async function GET(request: Request) {
     });
 
     const text = await response.text();
+    /*
     console.log('Upstox response status:', response.status);
     console.log('Upstox response body:', text);
+    */
     
     if (!response.ok) {
       return NextResponse.json(
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
     }
 
     const data = text ? JSON.parse(text) : {};
-    console.log('Authorization successful, data:', data);
+    // console.log('Authorization successful, data:', data);
     // Return the data directly as Upstox provides it, without wrapping
     return NextResponse.json(data, { status: 200 });
   } catch (error) {

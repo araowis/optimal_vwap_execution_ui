@@ -2,18 +2,17 @@
 
 import { X } from 'lucide-react';
 import MarketDepth from './MarketDepth';
+import OrderBook from './OrderBook';
 
 interface StockDetailPanelProps {
   stock: any;
   accessToken: string | null;
   mode: 'backtest' | 'realtime';
   onClose: () => void;
+  wsConnected?: boolean;
 }
 
-export default function StockDetailPanel({ stock, accessToken, mode, onClose }: StockDetailPanelProps) {
-  console.log('StockDetailPanel rendering with stock:', stock);
-  console.log('StockDetailPanel accessToken present:', !!accessToken);
-  
+export default function StockDetailPanel({ stock, accessToken, mode, onClose, wsConnected = false }: StockDetailPanelProps) {
   if (!stock) return null;
 
   return (
@@ -44,6 +43,16 @@ export default function StockDetailPanel({ stock, accessToken, mode, onClose }: 
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Order Book */}
+        {accessToken && (
+          <OrderBook
+            accessToken={accessToken}
+            instrumentKey={stock.instrument_key}
+            enabled={mode === 'realtime'}
+            wsConnected={wsConnected}
+          />
+        )}
+
         {/* Market Depth */}
         {accessToken && (
           <MarketDepth
@@ -51,6 +60,7 @@ export default function StockDetailPanel({ stock, accessToken, mode, onClose }: 
             instrumentKey={stock.instrument_key}
             mode="full_d30"
             enabled={mode === 'realtime'}
+            wsConnected={wsConnected}
           />
         )}
 

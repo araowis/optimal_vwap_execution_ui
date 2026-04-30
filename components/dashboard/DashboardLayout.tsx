@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './Header';
 import DataUploadPanel from './DataUploadPanel';
 import ParametersPanel from './ParametersPanel';
@@ -11,6 +11,8 @@ import CustomizationPanel from './CustomizationPanel';
 import StockDetailPanel from './StockDetailPanel';
 import { CustomizationPrefs, Candle, ChartDatapoint, BacktestResult, StrategyParams } from '@/lib/types';
 import { BacktestService } from '@/lib/backtest-service';
+import { useUpstoxWebSocket } from '@/lib/use-upstox-websocket';
+import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -33,17 +35,8 @@ export default function DashboardLayout({
   const [selectedWatchlistStock, setSelectedWatchlistStock] = useState<any>(null);
   const [upstoxAccessToken, setUpstoxAccessToken] = useState<string | null>(null);
   const [backTestProgress, setBackTestProgress] = useState(0);
-  
-  // Sidebar state
-  const [leftSidebarWidth, setLeftSidebarWidth] = useState(320);
-  const [rightSidebarWidth, setRightSidebarWidth] = useState(384);
-  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
-  const [isResizingLeft, setIsResizingLeft] = useState(false);
-  const [isResizingRight, setIsResizingRight] = useState(false);
-  const [backTestMessage, setBackTestMessage] = useState('');
-  const [resultsCollapsed, setResultsCollapsed] = useState(false);
-  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [realtimePriceUpdate, setRealtimePriceUpdate] = useState<{ ltp: number; timestamp: number; volume?: number } | undefined>(undefined);
+
   const [strategyParams, setStrategyParams] = useState<StrategyParams>({
     totalQuantity: 100000,
     numTranches: 5,
@@ -62,79 +55,217 @@ export default function DashboardLayout({
       spreadBps: 5,
     },
   });
+  
+  // Sidebar state
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(320);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(384);
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  const [isResizingRight, setIsResizingRight] = useState(false);
+  const [backTestMessage, setBackTestMessage] = useState('');
+  const [resultsCollapsed, setResultsCollapsed] = useState(false);
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+
+  const handlePriceUpdate = useCallback((data: any) => {
+    // console.log('Real-time price update:', data);
+    setRealtimePriceUpdate({
+      ltp: data.ltp,
+      timestamp: data.timestamp,
+      volume: data.volume,
+    });
+  }, []);
+
+  // WebSocket for real-time price streaming
+  const { isConnected: wsConnected } = useUpstoxWebSocket({
+    accessToken: upstoxAccessToken,
+    instrumentKey: selectedWatchlistStock?.instrument_key || null,
+    enabled: mode === 'realtime' && !!selectedWatchlistStock && !!upstoxAccessToken,
+    onPriceUpdate: handlePriceUpdate,
+  });
+
+  // REST polling fallback for realtime price updates (keeps chart updating even if WS doesn't stream)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    // Don't poll if WebSocket is connected or not in realtime mode
+    if (mode !== 'realtime' || !upstoxAccessToken || !selectedWatchlistStock?.instrument_key || wsConnected) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchQuote = async () => {
+      // Skip polling if WebSocket is connected
+      if (wsConnected) {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/upstox/market-quote?instrument_key=${encodeURIComponent(selectedWatchlistStock.instrument_key)}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
+          { method: 'GET' }
+        );
+        const result = await response.json();
+
+        if (cancelled) return;
+
+        if (result?.status !== 'success' || !result?.data) return;
+
+        const instrumentData =
+          result.data[selectedWatchlistStock.instrument_key] ||
+          (Object.values(result.data).length === 1 ? Object.values(result.data)[0] : undefined);
+
+        if (!instrumentData) return;
+
+        const ltp = Number(instrumentData.last_price ?? instrumentData.ltp ?? 0);
+        const volume = Number(instrumentData.volume ?? 0);
+
+        if (Number.isFinite(ltp) && ltp > 0) {
+          setRealtimePriceUpdate({
+            ltp,
+            timestamp: Date.now(),
+            volume,
+          });
+        }
+      } catch {
+        // ignore polling errors; WS can still work
+      }
+    };
+
+    // Fetch immediately, then poll
+    fetchQuote();
+    pollingIntervalRef.current = setInterval(fetchQuote, 2500);
+
+    return () => {
+      cancelled = true;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [mode, upstoxAccessToken, selectedWatchlistStock, wsConnected]);
 
   const handleDataUpload = (data: Candle[], logo?: string, name?: string) => {
-    console.log('DashboardLayout handleDataUpload called with', data.length, 'candles');
-    console.log('First candle:', data[0]);
     setCandles(data);
     setChartData([]);
     setCompanyLogo(logo || '');
     setInstrumentName(name || '');
   };
 
-  const handleWatchlistStockSelect = async (stock: any) => {
-    console.log('handleWatchlistStockSelect called with stock:', stock);
-    console.log('upstoxAccessToken present:', !!upstoxAccessToken);
-    console.log('rightSidebarCollapsed:', rightSidebarCollapsed);
+  const handleWatchlistStockSelect = useCallback(async (stock: any) => {
+    // console.log('handleWatchlistStockSelect called with stock:', stock, 'Mode:', mode);
     
     setSelectedWatchlistStock(stock);
-    setRightSidebarCollapsed(false); // Auto-expand right sidebar when stock is selected
-    console.log('selectedWatchlistStock set to:', stock);
-    console.log('rightSidebarCollapsed set to false');
+    setRightSidebarCollapsed(false);
     
-    if (!upstoxAccessToken) return;
+    // Immediately clear current chart to avoid showing previous stock
+    setCandles([]);
+    setChartData([]);
+    setRealtimePriceUpdate(undefined);
+
+    if (!upstoxAccessToken) {
+      setInstrumentName(stock.name);
+      setCompanyLogo(stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : '');
+      return;
+    }
 
     try {
-      // Fetch last 30 days of historical candle data for the selected stock
-      const today = new Date();
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      const toDate = today.toISOString().split('T')[0];
-      const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
-      
-      const url = `/api/upstox/historical-candle?instrumentKey=${encodeURIComponent(stock.instrument_key)}&interval=day&toDate=${toDate}&fromDate=${fromDate}`;
-      console.log('Fetching from:', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${upstoxAccessToken}`,
-        },
+      // Determine date range and interval based on mode
+      let fromDate: string;
+      let toDate: string;
+      let interval: 'day' | '1minute';
+
+      if (mode === 'realtime') {
+        toDate = getTodayDate();
+        fromDate = getTodayDate();
+        interval = '1minute';
+      } else {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        toDate = today.toISOString().split('T')[0];
+        fromDate = thirtyDaysAgo.toISOString().split('T')[0];
+        interval = 'day';
+      }
+
+      let fetchedCandles = await fetchHistoricalCandles({
+        accessToken: upstoxAccessToken,
+        instrumentKey: stock.instrument_key,
+        interval,
+        fromDate,
+        toDate,
       });
 
-      const result = await response.json();
-      console.log('Historical candle result:', result);
-      console.log('Result data structure:', JSON.stringify(result.data, null, 2));
-
-      if (result.ok && result.data?.data?.candles) {
-        const candles = result.data.data.candles.map((candle: any) => ({
-          timestamp: new Date(candle[0]),
-          open: candle[1],
-          high: candle[2],
-          low: candle[3],
-          close: candle[4],
-          volume: candle[5],
-        }));
-
-        console.log('Setting candles:', candles.length, 'candles');
-        console.log('First candle:', candles[0]);
-        setCandles(candles);
-        setChartData([]);
-        setCompanyLogo(stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : '');
-        setInstrumentName(stock.name);
-        console.log('Company logo set to:', stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : '');
-        console.log('Instrument name set to:', stock.name);
-      } else {
-        console.error('No candles in result, checking alternative paths');
-        console.log('result.data:', result.data);
-        console.log('result.data.data:', result.data?.data);
-        console.log('result.data.candles:', result.data?.candles);
+      // In realtime mode, Upstox can return empty candles for today early in the session.
+      // Fallback to include yesterday->today to ensure the intraday chart is visible.
+      if (mode === 'realtime' && fetchedCandles.length === 0) {
+        fetchedCandles = await fetchHistoricalCandles({
+          accessToken: upstoxAccessToken,
+          instrumentKey: stock.instrument_key,
+          interval: '1minute',
+          fromDate: getYesterdayDate(),
+          toDate: getTodayDate(),
+        });
       }
+
+      // If still empty, try last 7 days for intraday data
+      if (mode === 'realtime' && fetchedCandles.length === 0) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        fetchedCandles = await fetchHistoricalCandles({
+          accessToken: upstoxAccessToken,
+          instrumentKey: stock.instrument_key,
+          interval: '1minute',
+          fromDate: sevenDaysAgo.toISOString().split('T')[0],
+          toDate: getTodayDate(),
+        });
+      }
+
+      setCandles(fetchedCandles);
+      setCompanyLogo(stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : '');
+      setInstrumentName(stock.name);
     } catch (error) {
       console.error('Failed to load stock data:', error);
+      // Fallback UI state
+      setInstrumentName(stock.name);
+      setCompanyLogo(stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : '');
     }
-  };
+  }, [mode, upstoxAccessToken]);
+
+  // Handle mode switches and auto-refresh data
+  useEffect(() => {
+    // console.log('Mode changed to:', mode);
+    
+    // Clear backtest specific results when switching
+    setBacktestResults(null);
+    setBackTestProgress(0);
+    setBackTestMessage('');
+    
+    // If we have a stock selected, refresh its data for the new mode
+    if (selectedWatchlistStock) {
+      handleWatchlistStockSelect(selectedWatchlistStock);
+    } else {
+      setCandles([]);
+      setChartData([]);
+    }
+  }, [mode, selectedWatchlistStock, handleWatchlistStockSelect]);
+
+  // Reset real-time update when stock changes
+  useEffect(() => {
+    setRealtimePriceUpdate(undefined);
+  }, [selectedWatchlistStock]);
 
   const handleResizeLeft = (e: React.MouseEvent) => {
     setIsResizingLeft(true);
@@ -257,6 +388,7 @@ export default function DashboardLayout({
                 mode={mode} 
                 onWatchlistStockSelect={handleWatchlistStockSelect}
                 onUpstoxTokenChange={setUpstoxAccessToken}
+                wsConnected={wsConnected}
               />
               <ParametersPanel
                 params={strategyParams}
@@ -292,11 +424,10 @@ export default function DashboardLayout({
             onChartDataChange={setChartData}
             companyLogo={companyLogo}
             instrumentName={instrumentName}
-            mode={mode}
             timeframeMode={chartTimeframeMode}
             onTimeframeChange={setChartTimeframeMode}
-            upstoxAccessToken={upstoxAccessToken || undefined}
-            upstoxInstrumentKey={selectedWatchlistStock?.instrument_key}
+            mode={mode}
+            realtimePriceUpdate={realtimePriceUpdate}
           />
         </div>
 
@@ -308,7 +439,7 @@ export default function DashboardLayout({
               className="w-1 bg-border hover:bg-primary cursor-col-resize"
               onMouseDown={handleResizeRight}
             />
-            <div 
+            <div
               className="bg-card rounded-r-lg border border-border flex flex-col overflow-hidden"
               style={{ width: `${rightSidebarWidth}px` }}
             >
@@ -320,18 +451,13 @@ export default function DashboardLayout({
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              {selectedWatchlistStock ? (
-                <StockDetailPanel
-                  stock={selectedWatchlistStock}
-                  accessToken={upstoxAccessToken}
-                  mode={mode}
-                  onClose={() => setSelectedWatchlistStock(null)}
-                />
-              ) : (
-                <div className="p-4 text-xs text-muted-foreground">
-                  Select a stock from the watchlist to see details
-                </div>
-              )}
+              <StockDetailPanel
+                stock={selectedWatchlistStock}
+                accessToken={upstoxAccessToken}
+                mode={mode}
+                wsConnected={wsConnected}
+                onClose={() => setSelectedWatchlistStock(null)}
+              />
               <CustomizationPanel
                 preferences={customizationPrefs}
                 onPreferencesChange={onPreferencesChange}

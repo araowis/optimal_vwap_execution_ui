@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import { useUpstoxFeedStream } from './use-upstox-feed-stream';
 
 interface MarketDepthData {
   instrumentKey: string;
@@ -28,6 +29,7 @@ interface UseMarketDepthProps {
   mode?: 'full' | 'full_d30';
   enabled?: boolean;
   pollInterval?: number;
+  wsConnected?: boolean;
 }
 
 export function useMarketDepth({
@@ -35,15 +37,46 @@ export function useMarketDepth({
   instrumentKey,
   mode = 'full',
   enabled = true,
-  pollInterval = 1000,
+  pollInterval = 2500,
+  wsConnected = false,
 }: UseMarketDepthProps) {
   const [depthData, setDepthData] = useState<MarketDepthData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const useStream = enabled && !!accessToken && !!instrumentKey && wsConnected;
+
+  const { isConnected: streamConnected, error: streamError } = useUpstoxFeedStream({
+    accessToken,
+    instrumentKey,
+    enabled: useStream,
+    mode: mode === 'full_d30' ? 'full_d30' : 'full',
+    onUpdate: (update) => {
+      setDepthData((prev) => {
+        const bids = update.bids || prev?.bids || [];
+        const asks = update.asks || prev?.asks || [];
+        const next: MarketDepthData = {
+          instrumentKey,
+          bids,
+          asks,
+          ltp: update.ltp,
+          timestamp: update.timestamp,
+          volume: update.volume,
+          ohlc: prev?.ohlc,
+          averagePrice: prev?.averagePrice,
+          netChange: prev?.netChange,
+          totalBuyQuantity: prev?.totalBuyQuantity,
+          totalSellQuantity: prev?.totalSellQuantity,
+        };
+        return next;
+      });
+    },
+  });
+
   const fetchMarketDepth = useCallback(async () => {
     if (!accessToken || !instrumentKey || !enabled) return;
+    if (useStream) return;
 
     try {
       setError(null);
@@ -59,10 +92,7 @@ export function useMarketDepth({
       );
 
       const result = await response.json();
-      console.log('Market quote result:', result);
-      console.log('Market quote data keys:', Object.keys(result.data || {}));
-      console.log('Instrument key:', instrumentKey);
-      console.log('Instrument data:', result.data[instrumentKey]);
+      // console.log('Market quote result:', result);
 
       if (result.status === 'success' && result.data) {
         // The API returns data keyed by symbol (e.g. NSE_EQ:RELIANCE)
@@ -77,15 +107,7 @@ export function useMarketDepth({
         }
 
         if (!instrumentData) {
-          const availableKeys = Object.keys(result.data);
-          const errorMsg = `No instrument data found for key: ${instrumentKey}. Available: ${availableKeys.join(', ')}`;
-          console.error(errorMsg);
-          // Only show toast if we actually have some data but not the one we want
-          if (availableKeys.length > 0) {
-            toast.error("Instrument Mismatch", {
-              description: `Found ${availableKeys.length} items but none match ${instrumentKey}`,
-            });
-          }
+          // console.error(`No instrument data found for key: ${instrumentKey}`);
           setIsRefreshing(false);
           return;
         }
@@ -142,12 +164,6 @@ export function useMarketDepth({
             totalSellQuantity: instrumentData.total_sell_quantity,
           };
 
-          console.log('Setting depth data:', {
-            ltp: newData.ltp,
-            bids: bids.length,
-            asks: asks.length,
-          });
-
           setDepthData(newData);
         }
       } else {
@@ -165,12 +181,18 @@ export function useMarketDepth({
     } finally {
       setIsRefreshing(false);
     }
-  }, [accessToken, instrumentKey, enabled]);
+  }, [accessToken, instrumentKey, enabled, useStream]);
 
   useEffect(() => {
     if (!enabled) {
       setIsConnected(false);
       localStorage.setItem('websocket-connected', 'false');
+      return;
+    }
+
+    if (useStream) {
+      setError(streamError || null);
+      setIsConnected(streamConnected);
       return;
     }
 
@@ -187,7 +209,7 @@ export function useMarketDepth({
       setIsConnected(false);
       localStorage.setItem('websocket-connected', 'false');
     };
-  }, [fetchMarketDepth, pollInterval, enabled]);
+  }, [fetchMarketDepth, pollInterval, enabled, useStream, streamConnected, streamError]);
 
   return {
     depthData,

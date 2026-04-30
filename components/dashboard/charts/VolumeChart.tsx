@@ -19,7 +19,10 @@ function VolumeTooltip({ active, payload, label }: any) {
 
   const up = payload.find((p: any) => p.dataKey === 'volumeUp');
   const down = payload.find((p: any) => p.dataKey === 'volumeDown');
-  const ts = new Date(Number(label));
+  // In this chart the XAxis uses `index`, so `label` is not a timestamp.
+  // Use the data payload's timestamp instead.
+  const tsRaw = payload?.[0]?.payload?.timestamp;
+  const ts = new Date(typeof tsRaw === 'number' ? tsRaw : Number(label));
 
   const upVal = Number(up?.value || 0);
   const downVal = Number(down?.value || 0);
@@ -77,7 +80,10 @@ const VolumeChart = React.memo(function VolumeChart({
   const chartData = useMemo(() => {
     const period = 20;
 
-    const vols = data.map((d) => d.candle.volume);
+    const vols = data.map((d) => {
+      const v = Number((d as any)?.candle?.volume ?? 0);
+      return Number.isFinite(v) ? v : 0;
+    });
     const sma = vols.map((_, i) => {
       const start = Math.max(0, i - period + 1);
       let sum = 0;
@@ -87,22 +93,24 @@ const VolumeChart = React.memo(function VolumeChart({
 
     const mapped = data.map((d, index) => {
       const isUp = d.candle.close >= d.candle.open;
+      const vol = vols[index] ?? 0;
       return {
         index,
-        id: `volume-${index}-${d.candle.timestamp.getTime()}`, // unique key to prevent React errors
+        id: `volume-${index}-${d.candle.timestamp.getTime()}-${vol}`, // unique key to prevent React errors
         timestamp: d.candle.timestamp.getTime(),
-        volumeUp: isUp ? d.candle.volume : 0,
-        volumeDown: !isUp ? d.candle.volume : 0,
-        volume: d.candle.volume,
+        volumeUp: isUp ? vol : 0,
+        volumeDown: !isUp ? vol : 0,
+        volume: vol,
         volumeSma20: sma[index],
       };
     });
 
-    // Filter out any duplicate timestamps to prevent Recharts key errors
-    const seen = new Set<number>();
+    // Filter out any duplicate entries to prevent Recharts key errors
+    const seen = new Set<string>();
     return mapped.filter((d) => {
-      if (seen.has(d.timestamp)) return false;
-      seen.add(d.timestamp);
+      const key = `${d.index}-${d.timestamp}-${d.volume}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
   }, [data]);
@@ -174,6 +182,7 @@ const VolumeChart = React.memo(function VolumeChart({
           />
 
           <Bar
+            key="volumeUp"
             dataKey="volumeUp"
             name="Bullish Volume"
             stackId="vol"
@@ -182,6 +191,7 @@ const VolumeChart = React.memo(function VolumeChart({
             opacity={0.9}
           />
           <Bar
+            key="volumeDown"
             dataKey="volumeDown"
             name="Bearish Volume"
             stackId="vol"
@@ -192,6 +202,7 @@ const VolumeChart = React.memo(function VolumeChart({
 
           {/* Interactive volume curve overlays */}
           <Line
+            key="volume"
             type="monotone"
             dataKey="volume"
             name="Volume Curve"
@@ -202,6 +213,7 @@ const VolumeChart = React.memo(function VolumeChart({
             isAnimationActive={false}
           />
           <Line
+            key="volumeSma20"
             type="monotone"
             dataKey="volumeSma20"
             name="Volume SMA(20)"

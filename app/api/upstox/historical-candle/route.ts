@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const toDate = searchParams.get('toDate') || '';
     const fromDate = searchParams.get('fromDate') || '';
 
-    console.log(`[API Proxy] Received params:`, { instrumentKey, interval, toDate, fromDate });
+    console.log(`[API Proxy] Historical candle params:`, { instrumentKey, interval, toDate, fromDate });
 
     if (!instrumentKey || !interval || !toDate || !fromDate) {
       return NextResponse.json(
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
     const encoded = encodeURIComponent(instrumentKey);
     const url = `https://api.upstox.com/v2/historical-candle/${encoded}/${interval}/${toDate}/${fromDate}`;
-    console.log(`[API Proxy] Calling Upstox v2: ${url}`);
+    // console.log(`[API Proxy] Calling Upstox v2: ${url}`);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -36,7 +36,10 @@ export async function GET(request: Request) {
     });
 
     const text = await response.text();
+    console.log(`[API Proxy] Upstox response status:`, response.status, 'body length:', text.length);
+
     if (!response.ok) {
+      console.error(`[API Proxy] Upstox error:`, text);
       return NextResponse.json(
         { ok: false, status: response.status, error: text || 'Upstox request failed' },
         { status: 200 }
@@ -44,6 +47,7 @@ export async function GET(request: Request) {
     }
 
     const data = text ? JSON.parse(text) : {};
+    console.log(`[API Proxy] Parsed data:`, JSON.stringify(data).substring(0, 300));
     return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch {
     return NextResponse.json({ ok: false, error: 'Historical candle fetch failed' }, { status: 200 });

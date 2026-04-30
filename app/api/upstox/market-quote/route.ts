@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('Market quote response:', JSON.stringify(data, null, 2));
+    // console.log('Market quote response:', JSON.stringify(data, null, 2));
 
     // Return the data directly as Upstox provides it
     return NextResponse.json(data, { status: 200 });

@@ -8,6 +8,7 @@ interface MarketDepthProps {
   instrumentKey: string;
   mode?: 'full' | 'full_d30';
   enabled?: boolean;
+  wsConnected?: boolean;
 }
 
 export default function MarketDepth({
@@ -15,17 +16,19 @@ export default function MarketDepth({
   instrumentKey,
   mode = 'full',
   enabled = true,
+  wsConnected = false,
 }: MarketDepthProps) {
   const { depthData, isConnected, error, refresh, isRefreshing } = useMarketDepth({
     accessToken,
     instrumentKey,
     mode,
     enabled,
+    wsConnected,
   });
 
-  console.log('MarketDepth component - depthData:', depthData);
-  console.log('MarketDepth component - isConnected:', isConnected);
-  console.log('MarketDepth component - error:', error);
+  // console.log('MarketDepth component - depthData:', depthData);
+  // console.log('MarketDepth component - isConnected:', isConnected);
+  // console.log('MarketDepth component - error:', error);
 
   if (!enabled) {
     return null;
