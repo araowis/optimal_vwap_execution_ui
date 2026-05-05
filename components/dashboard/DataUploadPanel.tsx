@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Upload, AlertCircle, Search, Calendar } from 'lucide-react';
+import { Upload, AlertCircle, Search, Calendar, CheckCircle, XCircle } from 'lucide-react';
 import { parseCSV, parseCSVStreaming } from '@/lib/data-parser';
 import { Candle } from '@/lib/types';
 import UpstoxConfigDialog from './UpstoxConfigDialog';
 import MarketDepth from './MarketDepth';
+import { vwapServerService } from '@/lib/vwap-server-service';
 
 interface DataUploadPanelProps {
   onDataUpload: (data: Candle[], logo?: string, name?: string) => void;
@@ -81,6 +82,7 @@ export default function DataUploadPanel({
   const [showWatchlistSuggestions, setShowWatchlistSuggestions] = useState(false);
   const watchlistSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [calibratedInstruments, setCalibratedInstruments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const saved = localStorage.getItem('upstox-access-token');
@@ -149,6 +151,28 @@ export default function DataUploadPanel({
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
   }, [mode, upstoxAccessToken, watchlist, wsConnected]);
+
+  // Fetch calibrated instruments from VWAP server
+  useEffect(() => {
+    const fetchCalibratedInstruments = async () => {
+      try {
+        const response = await vwapServerService.getInstruments();
+        const instrumentKeys = new Set(
+          response.instruments
+            .filter((inst) => inst.sessionLive)
+            .map((inst) => inst.instrumentKey)
+        );
+        setCalibratedInstruments(instrumentKeys);
+      } catch (error) {
+        console.error('Failed to fetch calibrated instruments:', error);
+      }
+    };
+
+    fetchCalibratedInstruments();
+    // Poll every 30 seconds for calibration status updates
+    const interval = setInterval(fetchCalibratedInstruments, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const validateToken = async (token: string) => {
     setTokenValidating(true);
@@ -829,7 +853,8 @@ export default function DataUploadPanel({
                   const priceData = watchlistPrices[item.instrument_key];
                   const isSelected = selectedWatchlistStock?.instrument_key === item.instrument_key;
                   const priceColor = priceData?.changePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
-                  
+                  const isCalibrated = calibratedInstruments.has(item.instrument_key);
+
                   return (
                     <div
                       key={item.instrument_key}
@@ -856,7 +881,18 @@ export default function DataUploadPanel({
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-xs text-foreground">{item.trading_symbol}</div>
+                        <div className="flex items-center gap-1">
+                          <div className="font-semibold text-xs text-foreground">{item.trading_symbol}</div>
+                          {isCalibrated ? (
+                            <div title="Calibrated">
+                              <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
+                            </div>
+                          ) : (
+                            <div title="Not Calibrated">
+                              <XCircle className="w-3 h-3 text-red-600 dark:text-red-400 flex-shrink-0" />
+                            </div>
+                          )}
+                        </div>
                         <div className="text-[10px] text-muted-foreground">{item.name}</div>
                       </div>
                       <div className="text-right flex-shrink-0 min-w-[90px]">

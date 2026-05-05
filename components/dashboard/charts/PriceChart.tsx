@@ -69,7 +69,11 @@ interface PriceChartProps {
   hoveredCandle: number | null;
   onCandleHover: (index: number | null) => void;
   volumeCurveVisible: boolean;
+  volumeCurveData?: number[];
+  timeLabels?: string[];
   onClickedCandle: (index: number | null) => void;
+  pretradeVolumeCurve?: number[];
+  showPretradeInMain?: boolean;
 }
 
 const PriceChart = React.memo(function PriceChart({
@@ -78,7 +82,11 @@ const PriceChart = React.memo(function PriceChart({
   hoveredCandle,
   onCandleHover,
   volumeCurveVisible,
+  volumeCurveData = [],
+  timeLabels = [],
   onClickedCandle,
+  pretradeVolumeCurve = [],
+  showPretradeInMain = false,
 }: PriceChartProps) {
   const defaultPalette = {
     price: '#3b82f6',
@@ -153,11 +161,20 @@ const PriceChart = React.memo(function PriceChart({
       return sum / (i - start + 1);
     });
 
+    // Map pretrade volume curve to data points
+    const pretradeValue = pretradeVolumeCurve.length > 0
+      ? chartData.map((d, i) => {
+          const idx = Math.floor((i / data.length) * pretradeVolumeCurve.length);
+          return pretradeVolumeCurve[idx] || 0;
+        })
+      : [];
+
     return chartData.map((d, i) => ({
       ...d,
       volumeSma: sma[i],
+      pretradeVolume: pretradeValue[i] || 0,
     }));
-  }, [data, chartData]);
+  }, [data, chartData, pretradeVolumeCurve]);
 
   const maxVolume = useMemo(() => {
     if (!data.length) return 0;
@@ -403,6 +420,20 @@ const PriceChart = React.memo(function PriceChart({
               strokeWidth={2}
               dot={{ r: prefs.signalMarkerSize, fill: buySignalColor, strokeWidth: 2 }}
               name="Buy Signal"
+            />
+          )}
+
+          {/* Pretrade Volume Curve Overlay */}
+          {showPretradeInMain && pretradeVolumeCurve.length > 0 && (
+            <Line
+              type="monotone"
+              dataKey="pretradeVolume"
+              stroke="#f59e0b"
+              strokeWidth={2.5}
+              dot={false}
+              connectNulls={false}
+              name="Pretrade Volume"
+              strokeDasharray="5 5"
             />
           )}
 

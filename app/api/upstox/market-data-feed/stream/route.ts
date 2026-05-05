@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import protobuf from 'protobufjs';
 import WebSocket from 'ws';
 import { randomUUID } from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export const runtime = 'nodejs';
 
@@ -12,8 +14,9 @@ let feedResponseTypePromise: Promise<protobuf.Type> | null = null;
 function getFeedResponseType() {
   if (!feedResponseTypePromise) {
     feedResponseTypePromise = (async () => {
-      const protoPath = `${process.cwd()}/lib/proto/MarketDataFeedV3.proto`;
-      const root = await protobuf.load(protoPath);
+      const protoPath = path.join(process.cwd(), 'lib', 'proto', 'MarketDataFeedV3.proto');
+      const protoContent = fs.readFileSync(protoPath, 'utf8');
+      const root = protobuf.parse(protoContent).root;
       const t = root.lookupType('com.upstox.marketdatafeederv3udapi.rpc.proto.FeedResponse');
       return t as protobuf.Type;
     })();

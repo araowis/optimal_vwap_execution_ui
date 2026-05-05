@@ -1,32 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { Play, AlertCircle, Settings, Maximize2, X } from 'lucide-react';
+import { Play, Settings, Maximize2, X } from 'lucide-react';
 import { StrategyParams } from '@/lib/types';
-import { backendService, StrategyParams as BackendStrategyParams } from '@/lib/backend-service';
 
 interface ParametersPanelProps {
   params: StrategyParams;
   onParamsChange: (params: StrategyParams) => void;
   onRunBacktest: (params: StrategyParams) => void;
+  onRunRealtime?: (params: { totalQty: number; nBins: number; lambda: number }) => void;
   isRunning: boolean;
   progress: number;
   message: string;
   onModeChange?: (mode: 'backtest' | 'realtime') => void;
+  selectedInstrumentKey?: string | null;
 }
 
 export default function ParametersPanel({
   params,
   onParamsChange,
   onRunBacktest,
+  onRunRealtime,
   isRunning,
   progress,
   message,
   onModeChange,
+  selectedInstrumentKey,
 }: ParametersPanelProps) {
   const [localParams, setLocalParams] = useState<StrategyParams>(params);
   const [runMode, setRunMode] = useState<'backtest' | 'realtime'>('backtest');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [lambda, setLambda] = useState(17.0);
 
   const handleModeChange = (newMode: 'backtest' | 'realtime') => {
     setRunMode(newMode);
@@ -38,12 +42,10 @@ export default function ParametersPanel({
   const handleChange = (field: keyof StrategyParams, value: any) => {
     const updated = { ...localParams, [field]: value };
     
-    // Auto-calculate tranches if total quantity changes
     if (field === 'totalQuantity' && localParams.numTranches > 0) {
       updated.trancheSize = Math.floor(value / localParams.numTranches);
     }
     
-    // Auto-calculate quantity if tranches change
     if (field === 'numTranches' && localParams.totalQuantity > 0) {
       updated.trancheSize = Math.floor(localParams.totalQuantity / value);
     }
@@ -54,6 +56,20 @@ export default function ParametersPanel({
 
   const handleRunBacktest = () => {
     onRunBacktest(localParams);
+  };
+
+  const handleRunRealtime = () => {
+    if (!selectedInstrumentKey) {
+      alert('Please select a stock from the watchlist first');
+      return;
+    }
+    if (onRunRealtime) {
+      onRunRealtime({
+        totalQty: localParams.totalQuantity,
+        nBins: localParams.numTranches,
+        lambda: lambda,
+      });
+    }
   };
 
   return (
@@ -70,208 +86,254 @@ export default function ParametersPanel({
       </div>
 
       <div className="space-y-4 flex-1 overflow-y-auto">
-        {/* Execution Parameters */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-foreground">Execution</h3>
+        {runMode === 'realtime' ? (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-foreground">Market Open Calibration</h3>
 
-          <div>
-            <label className="text-xs text-muted-foreground">Total Quantity</label>
-            <input
-              type="number"
-              value={localParams.totalQuantity}
-              onChange={(e) => handleChange('totalQuantity', parseInt(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-muted-foreground">Tranches</label>
+              <label className="text-xs text-muted-foreground">Total Quantity</label>
               <input
                 type="number"
-                value={localParams.numTranches}
-                onChange={(e) => handleChange('numTranches', parseInt(e.target.value) || 1)}
+                value={localParams.totalQuantity}
+                onChange={(e) => handleChange('totalQuantity', parseInt(e.target.value) || 0)}
                 className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
               />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Per Tranche</label>
-              <input
-                type="number"
-                value={localParams.trancheSize}
-                onChange={(e) => handleChange('trancheSize', parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-              />
-            </div>
-          </div>
 
-          <div>
-            <label className="text-xs text-muted-foreground">Order Type</label>
-            <select
-              value={localParams.orderType}
-              onChange={(e) => handleChange('orderType', e.target.value as 'LIMIT' | 'MARKET')}
-              className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-            >
-              <option>LIMIT</option>
-              <option>MARKET</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Risk Parameters */}
-        <div className="space-y-3 border-t border-border pt-4">
-          <h3 className="text-sm font-medium text-foreground">Risk Management</h3>
-
-          <div>
-            <label className="text-xs text-muted-foreground">
-              Max Slippage (%)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={localParams.maxSlippage}
-              onChange={(e) => handleChange('maxSlippage', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-muted-foreground">
-              VWAP Deviation Threshold (%)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={localParams.vwapDeviation}
-              onChange={(e) => handleChange('vwapDeviation', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-muted-foreground">Min Volume Threshold</label>
-            <input
-              type="number"
-              value={localParams.minVolumeThreshold}
-              onChange={(e) => handleChange('minVolumeThreshold', parseInt(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-            />
-          </div>
-        </div>
-
-        {/* Timeframe */}
-        <div className="space-y-3 border-t border-border pt-4">
-          <h3 className="text-sm font-medium text-foreground">Execution Window</h3>
-          <select
-            value={localParams.executionTimeframe}
-            onChange={(e) => handleChange('executionTimeframe', e.target.value as 'INTRADAY' | 'MULTI_DAY')}
-            className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-          >
-            <option value="INTRADAY">Intraday</option>
-            <option value="MULTI_DAY">Multi-Day</option>
-          </select>
-        </div>
-
-        {/* Transactional Costs */}
-        <div className="space-y-3 border-t border-border pt-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Transactional Costs
-            </h3>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={localParams.enableTxCosts || false}
-                onChange={(e) => handleChange('enableTxCosts', e.target.checked)}
-                className="w-4 h-4 rounded border-border bg-background text-primary focus:ring-2 focus:ring-primary"
-              />
-              <span className="text-xs text-muted-foreground">Enable</span>
-            </label>
-          </div>
-
-          {localParams.enableTxCosts && (
-            <div className="space-y-2 pl-2 border-l-2 border-border">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs text-muted-foreground">Brokerage (%)</label>
+                <label className="text-xs text-muted-foreground">Bins (nBins)</label>
                 <input
                   type="number"
-                  step="0.01"
-                  value={localParams.txCostConfig?.brokeragePercent || 0.12}
-                  onChange={(e) => {
-                    const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, brokeragePercent: parseFloat(e.target.value) || 0 } };
-                    setLocalParams(updated);
-                    onParamsChange(updated);
-                  }}
+                  value={localParams.numTranches}
+                  onChange={(e) => handleChange('numTranches', parseInt(e.target.value) || 1)}
                   className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                 />
               </div>
-
               <div>
-                <label className="text-xs text-muted-foreground">STT (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={localParams.txCostConfig?.sttPercent || 0.025}
-                  onChange={(e) => {
-                    const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, sttPercent: parseFloat(e.target.value) || 0 } };
-                    setLocalParams(updated);
-                    onParamsChange(updated);
-                  }}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">GST (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={localParams.txCostConfig?.gstPercent || 18}
-                  onChange={(e) => {
-                    const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, gstPercent: parseFloat(e.target.value) || 0 } };
-                    setLocalParams(updated);
-                    onParamsChange(updated);
-                  }}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">Exchange Fee (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={localParams.txCostConfig?.exchangeFeePercent || 0.00345}
-                  onChange={(e) => {
-                    const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, exchangeFeePercent: parseFloat(e.target.value) || 0 } };
-                    setLocalParams(updated);
-                    onParamsChange(updated);
-                  }}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">Spread (bps)</label>
+                <label className="text-xs text-muted-foreground">Risk Aversion (λ)</label>
                 <input
                   type="number"
                   step="0.1"
-                  value={localParams.txCostConfig?.spreadBps || 5}
-                  onChange={(e) => {
-                    const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, spreadBps: parseFloat(e.target.value) || 0 } };
-                    setLocalParams(updated);
-                    onParamsChange(updated);
-                  }}
+                  value={lambda}
+                  onChange={(e) => setLambda(parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                 />
               </div>
             </div>
-          )}
-        </div>
+
+            {selectedInstrumentKey && (
+              <div className="p-2 bg-secondary rounded-lg">
+                <span className="text-xs text-muted-foreground">Selected Instrument:</span>
+                <p className="text-xs font-medium text-foreground break-all">{selectedInstrumentKey}</p>
+              </div>
+            )}
+
+            {!selectedInstrumentKey && (
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                  Please select a stock from the watchlist to calibrate
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-foreground">Execution</h3>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Total Quantity</label>
+                <input
+                  type="number"
+                  value={localParams.totalQuantity}
+                  onChange={(e) => handleChange('totalQuantity', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">Tranches</label>
+                  <input
+                    type="number"
+                    value={localParams.numTranches}
+                    onChange={(e) => handleChange('numTranches', parseInt(e.target.value) || 1)}
+                    className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Per Tranche</label>
+                  <input
+                    type="number"
+                    value={localParams.trancheSize}
+                    onChange={(e) => handleChange('trancheSize', parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Order Type</label>
+                <select
+                  value={localParams.orderType}
+                  onChange={(e) => handleChange('orderType', e.target.value as 'LIMIT' | 'MARKET')}
+                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                >
+                  <option>LIMIT</option>
+                  <option>MARKET</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-border pt-4">
+              <h3 className="text-sm font-medium text-foreground">Risk Management</h3>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Max Slippage (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={localParams.maxSlippage}
+                  onChange={(e) => handleChange('maxSlippage', parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">VWAP Deviation Threshold (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={localParams.vwapDeviation}
+                  onChange={(e) => handleChange('vwapDeviation', parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Min Volume Threshold</label>
+                <input
+                  type="number"
+                  value={localParams.minVolumeThreshold}
+                  onChange={(e) => handleChange('minVolumeThreshold', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-border pt-4">
+              <h3 className="text-sm font-medium text-foreground">Execution Window</h3>
+              <select
+                value={localParams.executionTimeframe}
+                onChange={(e) => handleChange('executionTimeframe', e.target.value as 'INTRADAY' | 'MULTI_DAY')}
+                className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
+              >
+                <option value="INTRADAY">Intraday</option>
+                <option value="MULTI_DAY">Multi-Day</option>
+              </select>
+            </div>
+
+            <div className="space-y-3 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  Transactional Costs
+                </h3>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localParams.enableTxCosts || false}
+                    onChange={(e) => handleChange('enableTxCosts', e.target.checked)}
+                    className="w-4 h-4 rounded border-border bg-background text-primary focus:ring-2 focus:ring-primary"
+                  />
+                  <span className="text-xs text-muted-foreground">Enable</span>
+                </label>
+              </div>
+
+              {localParams.enableTxCosts && (
+                <div className="space-y-2 pl-2 border-l-2 border-border">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Brokerage (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={localParams.txCostConfig?.brokeragePercent || 0.12}
+                      onChange={(e) => {
+                        const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, brokeragePercent: parseFloat(e.target.value) || 0 } };
+                        setLocalParams(updated);
+                        onParamsChange(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground">STT (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={localParams.txCostConfig?.sttPercent || 0.025}
+                      onChange={(e) => {
+                        const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, sttPercent: parseFloat(e.target.value) || 0 } };
+                        setLocalParams(updated);
+                        onParamsChange(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground">GST (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={localParams.txCostConfig?.gstPercent || 18}
+                      onChange={(e) => {
+                        const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, gstPercent: parseFloat(e.target.value) || 0 } };
+                        setLocalParams(updated);
+                        onParamsChange(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground">Exchange Fee (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={localParams.txCostConfig?.exchangeFeePercent || 0.00345}
+                      onChange={(e) => {
+                        const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, exchangeFeePercent: parseFloat(e.target.value) || 0 } };
+                        setLocalParams(updated);
+                        onParamsChange(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground">Spread (bps)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={localParams.txCostConfig?.spreadBps || 5}
+                      onChange={(e) => {
+                        const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, spreadBps: parseFloat(e.target.value) || 0 } };
+                        setLocalParams(updated);
+                        onParamsChange(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Run Button Section */}
       <div className="mt-4 pt-4 border-t border-border space-y-3">
         {isRunning ? (
           <div className="space-y-2">
@@ -298,7 +360,7 @@ export default function ParametersPanel({
               <option value="realtime">Realtime</option>
             </select>
             <button
-              onClick={handleRunBacktest}
+              onClick={runMode === 'realtime' ? handleRunRealtime : handleRunBacktest}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity ${
                 runMode === 'realtime' 
                   ? 'bg-green-600 text-white hover:bg-green-700' 
@@ -312,7 +374,6 @@ export default function ParametersPanel({
         )}
       </div>
 
-      {/* Expanded Modal */}
       {isExpanded && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-background rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -325,224 +386,8 @@ export default function ParametersPanel({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-6">
-              {/* Execution Parameters */}
-              <div className="space-y-4">
-                <h3 className="text-base font-medium text-foreground border-b border-border pb-2">Execution</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Total Quantity</label>
-                    <input
-                      type="number"
-                      value={localParams.totalQuantity}
-                      onChange={(e) => handleChange('totalQuantity', parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Order Type</label>
-                    <select
-                      value={localParams.orderType}
-                      onChange={(e) => handleChange('orderType', e.target.value as 'LIMIT' | 'MARKET')}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    >
-                      <option>LIMIT</option>
-                      <option>MARKET</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Tranches</label>
-                    <input
-                      type="number"
-                      value={localParams.numTranches}
-                      onChange={(e) => handleChange('numTranches', parseInt(e.target.value) || 1)}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Per Tranche</label>
-                    <input
-                      type="number"
-                      value={localParams.trancheSize}
-                      onChange={(e) => handleChange('trancheSize', parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Max Slippage (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={localParams.maxSlippage}
-                      onChange={(e) => handleChange('maxSlippage', parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">VWAP Deviation (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={localParams.vwapDeviation}
-                      onChange={(e) => handleChange('vwapDeviation', parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Min Volume Threshold</label>
-                    <input
-                      type="number"
-                      value={localParams.minVolumeThreshold}
-                      onChange={(e) => handleChange('minVolumeThreshold', parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Execution Timeframe</label>
-                    <select
-                      value={localParams.executionTimeframe}
-                      onChange={(e) => handleChange('executionTimeframe', e.target.value as 'INTRADAY' | 'MULTI_DAY')}
-                      className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                    >
-                      <option>INTRADAY</option>
-                      <option>MULTI_DAY</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Transaction Costs */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-border pb-2">
-                  <h3 className="text-base font-medium text-foreground">Transaction Costs</h3>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={localParams.enableTxCosts}
-                      onChange={(e) => handleChange('enableTxCosts', e.target.checked)}
-                      className="rounded"
-                    />
-                    <span>Enable</span>
-                  </label>
-                </div>
-                {localParams.enableTxCosts && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">Brokerage (%)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={localParams.txCostConfig?.brokeragePercent || 0.12}
-                        onChange={(e) => {
-                          const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, brokeragePercent: parseFloat(e.target.value) || 0 } };
-                          setLocalParams(updated);
-                          onParamsChange(updated);
-                        }}
-                        className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">STT (%)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={localParams.txCostConfig?.sttPercent || 0.025}
-                        onChange={(e) => {
-                          const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, sttPercent: parseFloat(e.target.value) || 0 } };
-                          setLocalParams(updated);
-                          onParamsChange(updated);
-                        }}
-                        className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">GST (%)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={localParams.txCostConfig?.gstPercent || 18}
-                        onChange={(e) => {
-                          const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, gstPercent: parseFloat(e.target.value) || 0 } };
-                          setLocalParams(updated);
-                          onParamsChange(updated);
-                        }}
-                        className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">Exchange Fee (%)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={localParams.txCostConfig?.exchangeFeePercent || 0.00345}
-                        onChange={(e) => {
-                          const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, exchangeFeePercent: parseFloat(e.target.value) || 0 } };
-                          setLocalParams(updated);
-                          onParamsChange(updated);
-                        }}
-                        className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-sm text-muted-foreground mb-1 block">Spread (bps)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={localParams.txCostConfig?.spreadBps || 5}
-                        onChange={(e) => {
-                          const updated = { ...localParams, txCostConfig: { ...localParams.txCostConfig, spreadBps: parseFloat(e.target.value) || 0 } };
-                          setLocalParams(updated);
-                          onParamsChange(updated);
-                        }}
-                        className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Run Button */}
-              <div className="pt-4 border-t border-border">
-                {isRunning ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-foreground">{message}</span>
-                      <span className="text-muted-foreground">{progress}%</span>
-                    </div>
-                    <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <select
-                      value={runMode}
-                      onChange={(e) => setRunMode(e.target.value as 'backtest' | 'realtime')}
-                      className="px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm font-medium"
-                    >
-                      <option value="backtest">Backtest</option>
-                      <option value="realtime">Realtime</option>
-                    </select>
-                    <button
-                      onClick={() => {
-                        onRunBacktest(localParams);
-                        setIsExpanded(false);
-                      }}
-                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity ${
-                        runMode === 'realtime' 
-                          ? 'bg-green-600 text-white hover:bg-green-700' 
-                          : 'bg-foreground text-background'
-                      }`}
-                    >
-                      <Play className="w-4 h-4" />
-                      Run {runMode === 'realtime' ? 'Realtime' : 'Backtest'}
-                    </button>
-                  </div>
-                )}
-              </div>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">Expanded view coming soon</p>
             </div>
           </div>
         </div>

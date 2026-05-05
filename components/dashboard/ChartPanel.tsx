@@ -10,8 +10,11 @@ import {
 } from '@/lib/vwap-calculator';
 import { calculateVolumeBins } from '@/lib/volume-allocation';
 import { Candle, ChartDatapoint, CustomizationPrefs } from '@/lib/types';
+import { vwapServerService, PretradeResponse } from '@/lib/vwap-server-service';
 import PriceChart from './charts/PriceChart';
 import VolumeChart from './charts/VolumeChart';
+import PretradeCharts from './charts/PretradeCharts';
+import LiveAdjustments from './charts/LiveAdjustments';
 
 interface ChartPanelProps {
   candles: Candle[];
@@ -20,40 +23,37 @@ interface ChartPanelProps {
   onChartDataChange: (data: ChartDatapoint[]) => void;
   companyLogo?: string;
   instrumentName?: string;
+  instrumentKey?: string;
   timeframeMode?: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
   onTimeframeChange?: (mode: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR') => void;
   mode?: 'backtest' | 'realtime';
   realtimePriceUpdate?: { ltp: number; timestamp: number; volume?: number };
+  onPretradeDataChange?: (data: PretradeResponse | null) => void;
 }
 
 const ChartPanel = memo(function ChartPanel({
   candles,
   chartData,
   customizationPrefs,
+  instrumentKey,
   onChartDataChange,
   companyLogo,
   instrumentName,
   timeframeMode = 'ALL',
+  onPretradeDataChange,
   onTimeframeChange,
   mode = 'backtest',
   realtimePriceUpdate,
 }: ChartPanelProps) {
-  /*
-  console.log('ChartPanel render - candles.length:', candles.length, 'timeframeMode:', timeframeMode);
-  console.log('ChartPanel received companyLogo:', companyLogo);
-  console.log('ChartPanel received instrumentName:', instrumentName);
-  if (candles.length > 0) {
-    console.log('ChartPanel first candle:', candles[0]);
-    console.log('ChartPanel last candle:', candles[candles.length - 1]);
-  }
-  */
-
   const [displayData, setDisplayData] = useState<ChartDatapoint[]>([]);
+  const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
   const [hoveredCandle, setHoveredCandle] = useState<number | null>(null);
   const [clickedCandle, setClickedCandle] = useState<number | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [visibleDataPoints, setVisibleDataPoints] = useState(2000);
-  const [volumeCurveVisible, setVolumeCurveVisible] = useState(false);
+  const [volumeCurveVisible, setVolumeCurveVisible] = useState(true);
+  const [showPretradeInMain, setShowPretradeInMain] = useState(false);
+  const [showLiveAdjustments, setShowLiveAdjustments] = useState(false);
 
   const availableKeys = useMemo(() => {
     if (candles.length === 0) return [] as string[];
@@ -69,10 +69,9 @@ const ChartPanel = memo(function ChartPanel({
       } else if (timeframeMode === 'YEAR') {
         keys.add(String(d.getFullYear()));
       } else if (timeframeMode === 'WEEK') {
-        // ISO-like week key: YYYY-Www (approx, based on local time)
         const tmp = new Date(d);
         tmp.setHours(0, 0, 0, 0);
-        const day = (tmp.getDay() + 6) % 7; // Mon=0
+        const day = (tmp.getDay() + 6) % 7;
         tmp.setDate(tmp.getDate() - day + 3);
         const firstThursday = new Date(tmp.getFullYear(), 0, 4);
         const firstDay = (firstThursday.getDay() + 6) % 7;
@@ -96,27 +95,21 @@ const ChartPanel = memo(function ChartPanel({
       return;
     }
 
-    // Default to the latest available key
     setSelectedKey((prev) => (prev && availableKeys.includes(prev) ? prev : availableKeys[availableKeys.length - 1]));
   }, [availableKeys, timeframeMode]);
 
   const filteredCandles = useMemo(() => {
-    // console.log('ChartPanel filteredCandles calculation, candles.length:', candles.length);
     if (candles.length === 0) return [] as Candle[];
     
-    // Check if candles are daily (timestamp at midnight) or intraday
     const isDailyCandle = (date: Date) => {
       const hours = date.getHours();
       const minutes = date.getMinutes();
       return hours === 0 && minutes === 0;
     };
     
-    // If all candles are daily, skip market hours filter
     const allDaily = candles.every((c) => isDailyCandle(c.timestamp));
     
     if (allDaily) {
-      console.log('ChartPanel: All candles are daily, skipping market hours filter');
-      // Filter by timeframe mode for daily candles
       if (timeframeMode === 'ALL' || !selectedKey) return candles;
 
       const matches = (d: Date) => {
@@ -140,27 +133,19 @@ const ChartPanel = memo(function ChartPanel({
       return candles.filter((c) => matches(c.timestamp));
     }
     
-    // Filter for market hours (9:15 AM to 3:30 PM IST) for intraday candles
     const isMarketHour = (date: Date) => {
       const hours = date.getHours();
       const minutes = date.getMinutes();
       
-      // If timeframe is ALL, we want to see everything
       if (timeframeMode === 'ALL') return true;
       
-      // Otherwise filter for standard Indian market hours
       return (hours > 9 || (hours === 9 && minutes >= 15)) && 
              (hours < 15 || (hours === 15 && minutes <= 30));
     };
 
-    // First filter by market hours
     const marketHourCandles = candles.filter((c) => isMarketHour(c.timestamp));
-    // console.log('ChartPanel: After market hours filter, candles:', marketHourCandles.length);
-    
-    // If we filtered out EVERYTHING but have raw candles, fallback to raw candles to ensure visibility
     const baseCandles = marketHourCandles.length > 0 ? marketHourCandles : candles;
     
-    // Then filter by timeframe mode
     if (timeframeMode === 'ALL' || !selectedKey) return baseCandles;
 
     const matches = (d: Date) => {
@@ -186,25 +171,15 @@ const ChartPanel = memo(function ChartPanel({
   }, [candles, selectedKey, timeframeMode]);
 
   useEffect(() => {
-    // console.log('ChartPanel useEffect triggered, filteredCandles.length:', filteredCandles.length);
     if (filteredCandles.length === 0) {
-      // console.log('ChartPanel useEffect: no candles to process');
       setDisplayData([]);
       return;
     }
 
-    // Aggregate candles based on selected period
     const aggregated = aggregateCandles(filteredCandles, customizationPrefs.chartPeriod);
-    // console.log('ChartPanel aggregated candles:', aggregated.length);
-
-    // Calculate VWAP
     let vwapData = calculateVWAP(aggregated);
-    // console.log('ChartPanel vwapData calculated:', vwapData.length);
-
-    // Apply band width
     vwapData = calculateVWAPBands(vwapData, customizationPrefs.bandWidth);
 
-    // Build complete chart data
     let newChartData: ChartDatapoint[] = aggregated.map((candle, index) => {
       const vwap = vwapData[index];
       const { absolute: devAbsolute, percentage: devPct } = calculateDeviation(
@@ -223,14 +198,12 @@ const ChartPanel = memo(function ChartPanel({
       };
     });
 
-    // Detect buy signals based on VWAP deviation
     newChartData = detectBuySignals(newChartData, 0.5, 0);
 
     setDisplayData(newChartData);
     onChartDataChange(newChartData);
   }, [filteredCandles, customizationPrefs, onChartDataChange]);
 
-  // Handle real-time price updates in realtime mode
   useEffect(() => {
     if (mode !== 'realtime' || !realtimePriceUpdate) {
       return;
@@ -254,8 +227,9 @@ const ChartPanel = memo(function ChartPanel({
             vwap: initialCandle.close,
             upperBand: initialCandle.close,
             lowerBand: initialCandle.close,
+            stdDev: 0,
+            cumulativeTP: initialCandle.close * initialCandle.volume,
             cumulativeVolume: initialCandle.volume,
-            cumulativeValue: initialCandle.close * initialCandle.volume,
           },
           volumeBins: calculateVolumeBins(initialCandle, customizationPrefs.numVolumeBins),
           deviationFromVWAP: 0,
@@ -289,18 +263,18 @@ const ChartPanel = memo(function ChartPanel({
       const deltaVolume = newVolume - prevVolume;
 
       const cumVolume = (prevVwap?.cumulativeVolume || 0) + deltaVolume;
-      const cumValue = (prevVwap?.cumulativeValue || 0) + updatedCandle.close * deltaVolume;
-      const currentVwap = cumVolume > 0 ? cumValue / cumVolume : updatedCandle.close;
+      const currentVwap = cumVolume > 0 ? (prevVwap?.vwap || 0) : updatedCandle.close;
 
       const updatedDatapoint: ChartDatapoint = {
         candle: updatedCandle,
         vwapData: {
           timestamp: updatedCandle.timestamp,
           vwap: currentVwap,
+          stdDev: prevVwap?.stdDev || 0,
+          cumulativeTP: (prevVwap?.cumulativeTP || 0) + updatedCandle.close * deltaVolume,
           upperBand: currentVwap * (1 + customizationPrefs.bandWidth / 100),
           lowerBand: currentVwap * (1 - customizationPrefs.bandWidth / 100),
           cumulativeVolume: cumVolume,
-          cumulativeValue: cumValue,
         },
         volumeBins: calculateVolumeBins(updatedCandle, customizationPrefs.numVolumeBins),
         deviationFromVWAP: calculateDeviation(updatedCandle.close, currentVwap).absolute,
@@ -311,18 +285,52 @@ const ChartPanel = memo(function ChartPanel({
     });
   }, [realtimePriceUpdate, mode, customizationPrefs]);
 
+  // Fetch pretrade data when instrument key changes
+  useEffect(() => {
+    console.log('Pretrade fetch triggered. instrumentKey:', instrumentKey);
+    if (!instrumentKey) {
+      console.log('No instrumentKey, clearing pretrade data');
+      setPretradeData(null);
+      onPretradeDataChange?.(null);
+      return;
+    }
+
+    const fetchPretrade = async () => {
+      try {
+        console.log('Fetching pretrade data for:', instrumentKey);
+        // First check if VWAP server is available
+        const isHealthy = await vwapServerService.healthCheck();
+        if (!isHealthy) {
+          console.error('VWAP Server is not available');
+          return;
+        }
+        console.log('VWAP Server is healthy, fetching pretrade data');
+        const data = await vwapServerService.getPretrade(instrumentKey, 375);
+        console.log('Pretrade data received:', data);
+        setPretradeData(data);
+        onPretradeDataChange?.(data);
+      } catch (error) {
+        console.error('Failed to fetch pretrade data:', error);
+        setPretradeData(null);
+        onPretradeDataChange?.(null);
+      }
+    };
+
+    fetchPretrade();
+  }, [instrumentKey, onPretradeDataChange]);
+
   const sampledDisplayData = useMemo(() => {
     if (displayData.length <= visibleDataPoints) return displayData;
     const step = Math.ceil(displayData.length / visibleDataPoints);
     return displayData.filter((_, idx) => idx % step === 0);
   }, [displayData, visibleDataPoints]);
 
-  if (candles.length === 0 && mode !== 'realtime') {
+  if (candles.length === 0 && mode === 'backtest') {
     return (
       <div className="flex items-center justify-center h-full bg-background rounded-lg">
         <div className="text-center">
           <p className="text-muted-foreground text-sm">
-            {mode === 'realtime' ? 'Waiting for real-time market data...' : 'Upload stock data to start analyzing'}
+            Upload stock data to start analyzing
           </p>
         </div>
       </div>
@@ -346,9 +354,22 @@ const ChartPanel = memo(function ChartPanel({
           )}
           <div>
             <h2 className="text-lg font-bold text-foreground">{instrumentName || 'Price & VWAP Analysis'}</h2>
-            <span className="text-xs text-muted-foreground">
-              {filteredCandles.length} candles ({sampledDisplayData.length} displayed) • {customizationPrefs.chartPeriod}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {filteredCandles.length} candles ({sampledDisplayData.length} displayed) • {customizationPrefs.chartPeriod}
+              </span>
+              {pretradeData ? (
+                <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full"></span>
+                  Pretrade loaded
+                </span>
+              ) : instrumentKey ? (
+                <span className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-yellow-600 dark:bg-yellow-400 rounded-full"></span>
+                  No pretrade data
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -397,17 +418,15 @@ const ChartPanel = memo(function ChartPanel({
             </select>
           )}
 
-          <button
-            onClick={() => setVolumeCurveVisible(!volumeCurveVisible)}
-            className={`text-xs px-2 py-1 rounded border ${
-              volumeCurveVisible
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background text-foreground border-border'
-            }`}
-            title="Toggle Volume Curve"
-          >
-            {volumeCurveVisible ? 'Hide Volume' : 'Show Volume'}
-          </button>
+          {pretradeData && (
+            <button
+              onClick={() => setShowPretradeInMain(!showPretradeInMain)}
+              className="text-xs bg-primary/10 text-primary border border-primary/20 rounded px-2 py-1 hover:bg-primary/20"
+              title="Toggle pretrade volume curve location"
+            >
+              {showPretradeInMain ? 'Pretrade: Main' : 'Pretrade: Below'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -419,20 +438,43 @@ const ChartPanel = memo(function ChartPanel({
           hoveredCandle={hoveredCandle}
           onCandleHover={setHoveredCandle}
           volumeCurveVisible={volumeCurveVisible}
+          volumeCurveData={pretradeData?.eXt || []}
+          timeLabels={pretradeData?.timeLabels || []}
           onClickedCandle={setClickedCandle}
+          pretradeVolumeCurve={pretradeData?.eXt || []}
+          showPretradeInMain={showPretradeInMain}
         />
       </div>
 
-      {/* Volume Chart - hidden when volume curve is shown on price chart */}
-      {!volumeCurveVisible && (
-        <div className="h-32 bg-background rounded-lg border border-border overflow-hidden">
-          <VolumeChart
-            data={sampledDisplayData}
-            prefs={customizationPrefs}
-            hoveredCandle={hoveredCandle}
-            onCandleHover={setHoveredCandle}
-          />
-        </div>
+      {/* Pretrade / Live Toggle */}
+      <div className="flex items-center gap-2 px-1">
+        <button
+          onClick={() => setShowLiveAdjustments(false)}
+          className={`text-xs px-2 py-1 rounded border transition-colors ${
+            !showLiveAdjustments
+              ? 'bg-primary/10 text-primary border-primary/30'
+              : 'bg-background text-muted-foreground border-border hover:bg-secondary/50'
+          }`}
+        >
+          Pretrade
+        </button>
+        <button
+          onClick={() => setShowLiveAdjustments(true)}
+          className={`text-xs px-2 py-1 rounded border transition-colors ${
+            showLiveAdjustments
+              ? 'bg-primary/10 text-primary border-primary/30'
+              : 'bg-background text-muted-foreground border-border hover:bg-secondary/50'
+          }`}
+        >
+          Live Adjustments
+        </button>
+      </div>
+
+      {/* Bottom Charts */}
+      {showLiveAdjustments ? (
+        <LiveAdjustments instrumentKey={instrumentKey} />
+      ) : (
+        <PretradeCharts pretradeData={pretradeData} />
       )}
 
       {/* Hover Info (fixed height to prevent chart resize jitter) */}
@@ -451,9 +493,10 @@ const ChartPanel = memo(function ChartPanel({
 
 function DatapointInfo({ datapoint, showVolume }: { datapoint: ChartDatapoint; showVolume?: boolean }) {
   const { candle, vwapData, deviationPercentage } = datapoint;
+  const isUp = candle.close >= candle.open;
 
   return (
-    <div className="grid grid-cols-5 gap-4 text-xs">
+    <div className="grid grid-cols-6 gap-3 text-xs">
       <div>
         <p className="text-muted-foreground">Time</p>
         <p className="text-foreground font-medium">
@@ -461,29 +504,45 @@ function DatapointInfo({ datapoint, showVolume }: { datapoint: ChartDatapoint; s
         </p>
       </div>
       <div>
-        <p className="text-muted-foreground">Price (O/C)</p>
-        <p className="text-foreground font-medium">
-          {candle.open.toFixed(2)} / {candle.close.toFixed(2)}
+        <p className="text-muted-foreground">Open</p>
+        <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          {candle.open.toFixed(2)}
+        </p>
+      </div>
+      <div>
+        <p className="text-muted-foreground">High</p>
+        <p className="text-foreground font-medium">{candle.high.toFixed(2)}</p>
+      </div>
+      <div>
+        <p className="text-muted-foreground">Low</p>
+        <p className="text-foreground font-medium">{candle.low.toFixed(2)}</p>
+      </div>
+      <div>
+        <p className="text-muted-foreground">Close</p>
+        <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          {candle.close.toFixed(2)}
         </p>
       </div>
       <div>
         <p className="text-muted-foreground">VWAP</p>
         <p className="text-foreground font-medium">{vwapData.vwap.toFixed(2)}</p>
       </div>
-      <div>
-        <p className="text-muted-foreground">Deviation</p>
-        <p
-          className={`font-medium ${
-            deviationPercentage < 0 ? 'text-green-500' : 'text-red-500'
-          }`}
-        >
-          {deviationPercentage.toFixed(3)}%
-        </p>
-      </div>
-      <div>
-        <p className="text-muted-foreground">{showVolume ? 'Volume' : 'Volume'}</p>
-        <p className="text-foreground font-medium">{(candle.volume / 1000).toFixed(0)}K</p>
-      </div>
+      {showVolume && (
+        <>
+          <div>
+            <p className="text-muted-foreground">Volume</p>
+            <p className="text-foreground font-medium">
+              {candle.volume >= 1000000 ? `${(candle.volume / 1000000).toFixed(2)}M` : `${(candle.volume / 1000).toFixed(0)}K`}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Deviation</p>
+            <p className={`font-medium ${deviationPercentage < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              {deviationPercentage.toFixed(3)}%
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ChartDatapoint, CustomizationPrefs } from '@/lib/types';
+import { PretradeResponse } from '@/lib/vwap-server-service';
 
 function VolumeTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null;
@@ -69,6 +70,7 @@ interface VolumeChartProps {
   prefs: CustomizationPrefs;
   hoveredCandle: number | null;
   onCandleHover: (index: number | null) => void;
+  pretradeData?: PretradeResponse | null;
 }
 
 const VolumeChart = React.memo(function VolumeChart({
@@ -76,6 +78,7 @@ const VolumeChart = React.memo(function VolumeChart({
   prefs,
   hoveredCandle,
   onCandleHover,
+  pretradeData,
 }: VolumeChartProps) {
   const chartData = useMemo(() => {
     const period = 20;
@@ -91,9 +94,16 @@ const VolumeChart = React.memo(function VolumeChart({
       return sum / (i - start + 1);
     });
 
+    // Map pretrade volume curve to data points
+    const pretradeCurve = pretradeData?.eXt || [];
     const mapped = data.map((d, index) => {
       const isUp = d.candle.close >= d.candle.open;
       const vol = vols[index] ?? 0;
+      // Map pretrade curve to data index (scale proportionally)
+      const pretradeValue = pretradeCurve.length > 0
+        ? pretradeCurve[Math.floor((index / data.length) * pretradeCurve.length)] || 0
+        : 0;
+
       return {
         index,
         id: `volume-${index}-${d.candle.timestamp.getTime()}-${vol}`, // unique key to prevent React errors
@@ -102,6 +112,7 @@ const VolumeChart = React.memo(function VolumeChart({
         volumeDown: !isUp ? vol : 0,
         volume: vol,
         volumeSma20: sma[index],
+        pretradeVolume: pretradeValue,
       };
     });
 
@@ -113,7 +124,7 @@ const VolumeChart = React.memo(function VolumeChart({
       seen.add(key);
       return true;
     });
-  }, [data]);
+  }, [data, pretradeData]);
 
   const maxVol = useMemo(() => {
     if (!chartData.length) return 0;
@@ -223,6 +234,21 @@ const VolumeChart = React.memo(function VolumeChart({
             connectNulls={false}
             isAnimationActive={false}
           />
+          {/* Pretrade volume curve overlay */}
+          {pretradeData && pretradeData.eXt.length > 0 && (
+            <Line
+              key="pretradeVolume"
+              type="monotone"
+              dataKey="pretradeVolume"
+              name="Pretrade Volume Curve"
+              stroke="#f59e0b"
+              strokeWidth={2.5}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              strokeDasharray="5 5"
+            />
+          )}
         </BarChart>
       </ResponsiveContainer>
     </div>

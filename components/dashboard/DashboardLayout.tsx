@@ -9,8 +9,11 @@ import BenchmarkingPanel from './BenchmarkingPanel';
 import ExecutionSummary from './ExecutionSummary';
 import CustomizationPanel from './CustomizationPanel';
 import StockDetailPanel from './StockDetailPanel';
+import MarketOpenForm from './MarketOpenForm';
+import LiveTradingPanel from './LiveTradingPanel';
 import { CustomizationPrefs, Candle, ChartDatapoint, BacktestResult, StrategyParams } from '@/lib/types';
 import { BacktestService } from '@/lib/backtest-service';
+import { vwapServerService, PretradeResponse } from '@/lib/vwap-server-service';
 import { useUpstoxWebSocket } from '@/lib/use-upstox-websocket';
 import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -30,12 +33,15 @@ export default function DashboardLayout({
   const [companyLogo, setCompanyLogo] = useState<string>('');
   const [instrumentName, setInstrumentName] = useState<string>('');
   const [isBacktesting, setIsBacktesting] = useState(false);
-  const [mode, setMode] = useState<'backtest' | 'realtime'>('backtest');
+  const [mode, setMode] = useState<'backtest' | 'realtime' | 'vwap-live'>('backtest');
   const [chartTimeframeMode, setChartTimeframeMode] = useState<'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('ALL');
   const [selectedWatchlistStock, setSelectedWatchlistStock] = useState<any>(null);
   const [upstoxAccessToken, setUpstoxAccessToken] = useState<string | null>(null);
   const [backTestProgress, setBackTestProgress] = useState(0);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibrationMessage, setCalibrationMessage] = useState('');
   const [realtimePriceUpdate, setRealtimePriceUpdate] = useState<{ ltp: number; timestamp: number; volume?: number } | undefined>(undefined);
+  const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
 
   const [strategyParams, setStrategyParams] = useState<StrategyParams>({
     totalQuantity: 100000,
@@ -66,6 +72,7 @@ export default function DashboardLayout({
   const [backTestMessage, setBackTestMessage] = useState('');
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [customizationCollapsed, setCustomizationCollapsed] = useState(mode === 'realtime');
 
   const handlePriceUpdate = useCallback((data: any) => {
     // console.log('Real-time price update:', data);
@@ -358,6 +365,44 @@ export default function DashboardLayout({
     }
   };
 
+  const handleRunRealtime = async (params: { totalQty: number; nBins: number; lambda: number }) => {
+    if (!selectedWatchlistStock?.instrument_key) {
+      alert('Please select a stock from the watchlist first');
+      return;
+    }
+
+    setIsCalibrating(true);
+    setCalibrationMessage('Calibrating instrument...');
+
+    try {
+      const response = await vwapServerService.marketOpen({
+        instruments: [
+          {
+            instrumentKey: selectedWatchlistStock.instrument_key,
+            totalQty: params.totalQty,
+            nBins: params.nBins,
+            lambda: params.lambda,
+            timezone: 'Asia/Kolkata',
+          },
+        ],
+      });
+
+      if (response.status === 'calibrated') {
+        setCalibrationMessage(`Calibrated ${response.instrumentsCalibrated} instrument(s) successfully`);
+        alert(`Instrument calibrated successfully. You can add more stocks if needed.`);
+      } else {
+        setCalibrationMessage(response.message || 'Calibration failed');
+        alert(response.message || 'Calibration failed');
+      }
+    } catch (error) {
+      console.error('Market open calibration failed:', error);
+      setCalibrationMessage('Failed to calibrate. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to calibrate');
+    } finally {
+      setIsCalibrating(false);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Header */}
@@ -383,22 +428,33 @@ export default function DashboardLayout({
                   <ChevronLeft className="w-4 h-4" />
                 </button>
               </div>
-              <DataUploadPanel 
-                onDataUpload={handleDataUpload} 
-                mode={mode} 
-                onWatchlistStockSelect={handleWatchlistStockSelect}
-                onUpstoxTokenChange={setUpstoxAccessToken}
-                wsConnected={wsConnected}
-              />
-              <ParametersPanel
-                params={strategyParams}
-                onParamsChange={setStrategyParams}
-                onRunBacktest={handleRunBacktest}
-                isRunning={isBacktesting}
-                progress={backTestProgress}
-                message={backTestMessage}
-                onModeChange={setMode}
-              />
+              {mode === 'vwap-live' ? (
+                <>
+                  <MarketOpenForm />
+                  <LiveTradingPanel />
+                </>
+              ) : (
+                <>
+                  <DataUploadPanel 
+                    onDataUpload={handleDataUpload} 
+                    mode={mode as 'backtest' | 'realtime'} 
+                    onWatchlistStockSelect={handleWatchlistStockSelect}
+                    onUpstoxTokenChange={setUpstoxAccessToken}
+                    wsConnected={wsConnected}
+                  />
+                  <ParametersPanel
+                    params={strategyParams}
+                    onParamsChange={setStrategyParams}
+                    onRunBacktest={handleRunBacktest}
+                    onRunRealtime={handleRunRealtime}
+                    isRunning={isBacktesting || isCalibrating}
+                    progress={isCalibrating ? 50 : backTestProgress}
+                    message={isCalibrating ? calibrationMessage : backTestMessage}
+                    onModeChange={(newMode: 'backtest' | 'realtime') => setMode(newMode as 'backtest' | 'realtime')}
+                    selectedInstrumentKey={selectedWatchlistStock?.instrument_key}
+                  />
+                </>
+              )}
             </div>
             {/* Resize Handle */}
             <div
@@ -424,10 +480,12 @@ export default function DashboardLayout({
             onChartDataChange={setChartData}
             companyLogo={companyLogo}
             instrumentName={instrumentName}
+            instrumentKey={selectedWatchlistStock?.instrument_key}
             timeframeMode={chartTimeframeMode}
             onTimeframeChange={setChartTimeframeMode}
-            mode={mode}
+            mode={mode as 'backtest' | 'realtime'}
             realtimePriceUpdate={realtimePriceUpdate}
+            onPretradeDataChange={setPretradeData}
           />
         </div>
 
@@ -443,7 +501,15 @@ export default function DashboardLayout({
               className="bg-card rounded-r-lg border border-border flex flex-col overflow-hidden"
               style={{ width: `${rightSidebarWidth}px` }}
             >
-              <div className="flex items-center justify-end px-3 py-2 border-b border-border">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                {mode === 'realtime' && (
+                  <button
+                    onClick={() => setCustomizationCollapsed(!customizationCollapsed)}
+                    className="text-xs text-primary hover:text-primary/80 font-medium"
+                  >
+                    {customizationCollapsed ? 'Show Settings' : 'Hide Settings'}
+                  </button>
+                )}
                 <button
                   onClick={() => setRightSidebarCollapsed(true)}
                   className="text-muted-foreground hover:text-foreground"
@@ -454,14 +520,17 @@ export default function DashboardLayout({
               <StockDetailPanel
                 stock={selectedWatchlistStock}
                 accessToken={upstoxAccessToken}
-                mode={mode}
+                mode={mode as 'backtest' | 'realtime'}
                 wsConnected={wsConnected}
                 onClose={() => setSelectedWatchlistStock(null)}
+                pretradeData={pretradeData}
               />
-              <CustomizationPanel
-                preferences={customizationPrefs}
-                onPreferencesChange={onPreferencesChange}
-              />
+              {!customizationCollapsed && (
+                <CustomizationPanel
+                  preferences={customizationPrefs}
+                  onPreferencesChange={onPreferencesChange}
+                />
+              )}
               {backtestResults && (
                 <div className="border-t border-border">
                   <button
