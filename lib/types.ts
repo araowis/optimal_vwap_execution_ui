@@ -51,7 +51,7 @@ export interface BuySignal {
 // Strategy Parameters
 export interface StrategyParams {
   totalQuantity: number;
-  numTranches: number;
+  numTranches: number; // maps to "bins" in backend API
   trancheSize: number;
   maxSlippage: number; // Percentage
   vwapDeviation: number; // Percentage threshold for buy signal
@@ -66,6 +66,13 @@ export interface StrategyParams {
     exchangeFeePercent: number;
     spreadBps: number;
   };
+  // Backend API fields
+  lambda: number; // Risk aversion parameter
+  dates: string[]; // YYYY-MM-DD format dates for backtest
+  // Optional advanced params (used in backend-service)
+  participationRate?: number;
+  riskAversion?: number;
+  volatility?: number;
 }
 
 // Backtest Configuration
@@ -185,4 +192,44 @@ export interface WSMessage {
   timestamp: Date;
   progress?: number; // 0-100
   message?: string;
+}
+
+// ── Backend API Types (POST /api/backtest) ────────────────────────────────────
+
+/** A single buy signal returned by the backend */
+export interface BackendBuySignal {
+  binIdx: number;
+  time: string; // "HH:mm"
+  tNorm: number; // Normalized time 0–1
+  qtyToBuy: number;
+  executedQty: number;
+  execPrice: number;
+  cumTarget: number;
+  xStar: number;
+}
+
+/** Result for a single date in the backtest */
+export interface DailyBacktestResult {
+  date: string; // "YYYY-MM-DD"
+  status: 'OK' | 'NOT_A_TRADING_DAY' | 'ERROR';
+  errorMessage?: string;
+  marketVwap?: number;
+  tradedVwap?: number;
+  slippageBps?: number;
+  betterThanMarket?: boolean;
+  totalQty?: number;
+  executedQty?: number;
+  residualPct?: number;
+  buySignals?: BackendBuySignal[];
+}
+
+/** Top-level response from POST /api/backtest */
+export interface BacktestApiResponse {
+  instrumentKey: string;
+  bins: number;
+  lambda: number;
+  totalRequested: number;
+  successfulDays: number;
+  avgSlippageBps: number;
+  results: DailyBacktestResult[];
 }

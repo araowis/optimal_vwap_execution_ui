@@ -11,12 +11,22 @@ import CustomizationPanel from './CustomizationPanel';
 import StockDetailPanel from './StockDetailPanel';
 import MarketOpenForm from './MarketOpenForm';
 import LiveTradingPanel from './LiveTradingPanel';
-import { CustomizationPrefs, Candle, ChartDatapoint, BacktestResult, StrategyParams } from '@/lib/types';
+import {
+  CustomizationPrefs,
+  Candle,
+  ChartDatapoint,
+  BacktestResult,
+  StrategyParams,
+  BacktestApiResponse,
+  DailyBacktestResult,
+  BackendBuySignal,
+} from '@/lib/types';
 import { BacktestService } from '@/lib/backtest-service';
+import { backendService } from '@/lib/backend-service';
 import { vwapServerService, PretradeResponse } from '@/lib/vwap-server-service';
 import { useUpstoxWebSocket } from '@/lib/use-upstox-websocket';
 import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 interface DashboardLayoutProps {
   customizationPrefs: CustomizationPrefs;
@@ -30,6 +40,9 @@ export default function DashboardLayout({
   const [candles, setCandles] = useState<Candle[]>([]);
   const [chartData, setChartData] = useState<ChartDatapoint[]>([]);
   const [backtestResults, setBacktestResults] = useState<BacktestResult | null>(null);
+  // Multi-day backend results
+  const [multiDayResults, setMultiDayResults] = useState<BacktestApiResponse | null>(null);
+  const [activeDate, setActiveDate] = useState<string>('');
   const [companyLogo, setCompanyLogo] = useState<string>('');
   const [instrumentName, setInstrumentName] = useState<string>('');
   const [isBacktesting, setIsBacktesting] = useState(false);
@@ -43,16 +56,26 @@ export default function DashboardLayout({
   const [realtimePriceUpdate, setRealtimePriceUpdate] = useState<{ ltp: number; timestamp: number; volume?: number } | undefined>(undefined);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
 
+  // Import context: instrument + date range from DataUploadPanel
+  const [importContext, setImportContext] = useState<{
+    instrumentKey: string;
+    instrumentName: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
+
   const [strategyParams, setStrategyParams] = useState<StrategyParams>({
-    totalQuantity: 100000,
-    numTranches: 5,
-    trancheSize: 20000,
+    totalQuantity: 1000,
+    numTranches: 30,
+    trancheSize: 0,
     maxSlippage: 0.1,
     vwapDeviation: 0.5,
     minVolumeThreshold: 0,
     orderType: 'LIMIT',
     executionTimeframe: 'INTRADAY',
     enableTxCosts: false,
+    lambda: 17.5,
+    dates: [],
     txCostConfig: {
       brokeragePercent: 0.12,
       sttPercent: 0.025,
@@ -318,52 +341,111 @@ export default function DashboardLayout({
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  /** Generate weekday dates between two YYYY-MM-DD strings */
+  const generateTradingDates = (start: string, end: string): string[] => {
+    const dates: string[] = [];
+    const cur = new Date(start);
+    const endD = new Date(end);
+    while (cur <= endD) {
+      const day = cur.getDay();
+      if (day !== 0 && day !== 6) {
+        dates.push(cur.toISOString().slice(0, 10));
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  };
+
   const handleRunBacktest = async (params: StrategyParams) => {
-    if (candles.length === 0) {
-      alert('Please upload data first');
+    if (!importContext?.instrumentKey) {
+      alert('Please select an instrument in the "Import from Upstox" section first');
+      return;
+    }
+    if (!importContext.startDate || !importContext.endDate) {
+      alert('Please choose a Start Date and End Date in the Import section');
+      return;
+    }
+
+    const dates = generateTradingDates(importContext.startDate, importContext.endDate);
+    if (dates.length === 0) {
+      alert('No trading days found in the selected date range');
       return;
     }
 
     setStrategyParams(params);
     setIsBacktesting(true);
-    setBackTestProgress(0);
-    setBackTestMessage('Initializing backtest...');
+    setBackTestProgress(10);
+    setBackTestMessage('Connecting to backend...');
+    setMultiDayResults(null);
+    setBacktestResults(null);
 
     try {
-      // Progress simulation with verbose messages
-      const steps = [
-        { progress: 5, message: 'Validating input data...' },
-        { progress: 15, message: 'Parsing market data and timestamps...' },
-        { progress: 25, message: 'Calculating VWAP for all candles...' },
-        { progress: 35, message: 'Computing VWAP bands and deviations...' },
-        { progress: 45, message: 'Detecting buy signals based on parameters...' },
-        { progress: 55, message: 'Allocating volumes across price bins...' },
-        { progress: 65, message: 'Simulating tranche execution...' },
-        { progress: 75, message: 'Computing transaction costs and fees...' },
-        { progress: 85, message: 'Benchmarking performance vs VWAP...' },
-        { progress: 95, message: 'Finalizing results and metrics...' },
-      ];
+      setBackTestProgress(30);
+      setBackTestMessage(`Running backtest for ${dates.length} trading day(s)...`);
 
-      for (const step of steps) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setBackTestProgress(step.progress);
-        setBackTestMessage(step.message);
+      const response = await backendService.runMultiDayBacktest({
+        instrumentKey: importContext.instrumentKey,
+        bins: params.numTranches,
+        lambda: params.lambda ?? 17.0,
+        totalQty: params.totalQuantity,
+        dates,
+      });
+
+      setBackTestProgress(80);
+      setBackTestMessage('Processing results...');
+
+      setMultiDayResults(response);
+
+      // Auto-select the first successful day
+      const firstOk = response.results.find((r) => r.status === 'OK');
+      const initialDate = firstOk?.date || response.results[0]?.date || '';
+      setActiveDate(initialDate);
+
+      // Load candles for the initial active date
+      if (initialDate) {
+        await loadCandlesForDate(initialDate);
       }
-
-      // Run actual backtest
-      const service = new BacktestService(candles, params);
-      const results = await service.runBacktest();
 
       setBackTestProgress(100);
       setBackTestMessage('Backtest complete!');
-      setBacktestResults(results);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Backtest failed:', error);
-      setBackTestMessage('Backtest failed. Please try again.');
+      setBackTestMessage(`Backtest failed: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsBacktesting(false);
     }
   };
+
+  /** Fetch 1-minute historical candles for a specific date */
+  const loadCandlesForDate = useCallback(async (date: string) => {
+    const key = importContext?.instrumentKey || selectedWatchlistStock?.instrument_key;
+    if (!key || !upstoxAccessToken) return;
+    try {
+      const fetched = await fetchHistoricalCandles({
+        accessToken: upstoxAccessToken,
+        instrumentKey: key,
+        interval: '1minute',
+        fromDate: date,
+        toDate: date,
+      });
+      setCandles(fetched);
+      setChartData([]);
+    } catch (err) {
+      console.error('Failed to load candles for date', date, err);
+    }
+  }, [importContext, selectedWatchlistStock, upstoxAccessToken]);
+
+  /** When the user picks a different day in the dropdown */
+  const handleActiveDateChange = useCallback(async (date: string) => {
+    setActiveDate(date);
+    await loadCandlesForDate(date);
+  }, [loadCandlesForDate]);
+
+  /** Get signals for the currently active day */
+  const activeDayResult: DailyBacktestResult | undefined = multiDayResults?.results.find(
+    (r) => r.date === activeDate
+  );
+  const activeBuySignals: BackendBuySignal[] = activeDayResult?.buySignals ?? [];
 
   const handleRunRealtime = async (params: { totalQty: number; nBins: number; lambda: number }) => {
     if (!selectedWatchlistStock?.instrument_key) {
@@ -435,12 +517,20 @@ export default function DashboardLayout({
                 </>
               ) : (
                 <>
-                  <DataUploadPanel 
-                    onDataUpload={handleDataUpload} 
-                    mode={mode as 'backtest' | 'realtime'} 
+                  <DataUploadPanel
+                    onDataUpload={handleDataUpload}
+                    mode={mode as 'backtest' | 'realtime'}
                     onWatchlistStockSelect={handleWatchlistStockSelect}
                     onUpstoxTokenChange={setUpstoxAccessToken}
                     wsConnected={wsConnected}
+                    onImportContextChange={(ctx) => {
+                      setImportContext(ctx);
+                      // Mirror the selected instrument name/logo for the chart header
+                      if (ctx.instrumentKey) {
+                        setInstrumentName(ctx.instrumentName);
+                        // Use selectedWatchlistStock logo if available, otherwise leave blank
+                      }
+                    }}
                   />
                   <ParametersPanel
                     params={strategyParams}
@@ -451,7 +541,8 @@ export default function DashboardLayout({
                     progress={isCalibrating ? 50 : backTestProgress}
                     message={isCalibrating ? calibrationMessage : backTestMessage}
                     onModeChange={(newMode: 'backtest' | 'realtime') => setMode(newMode as 'backtest' | 'realtime')}
-                    selectedInstrumentKey={selectedWatchlistStock?.instrument_key}
+                    selectedInstrumentKey={selectedWatchlistStock?.instrument_key || importContext?.instrumentKey}
+                    importContext={importContext}
                   />
                 </>
               )}
@@ -473,6 +564,47 @@ export default function DashboardLayout({
 
         {/* Center Panel - Chart */}
         <div className="flex-1 bg-card rounded-lg border border-border flex flex-col overflow-hidden">
+          {/* Multi-day date selector */}
+          {multiDayResults && multiDayResults.results.length > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-secondary/30">
+              <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-xs text-muted-foreground font-medium">Trading Day:</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {multiDayResults.results.map((r) => (
+                  <button
+                    key={r.date}
+                    onClick={() => handleActiveDateChange(r.date)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                      r.date === activeDate
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : r.status === 'OK'
+                        ? 'bg-background border border-border text-foreground hover:bg-secondary'
+                        : 'bg-background border border-dashed border-border text-muted-foreground'
+                    }`}
+                    title={r.status !== 'OK' ? r.errorMessage || r.status : undefined}
+                  >
+                    {r.date}
+                    {r.status === 'OK' && r.betterThanMarket && (
+                      <span className="ml-1 text-green-500">▲</span>
+                    )}
+                    {r.status === 'OK' && !r.betterThanMarket && (
+                      <span className="ml-1 text-red-400">▼</span>
+                    )}
+                    {r.status !== 'OK' && (
+                      <span className="ml-1 text-yellow-500">!</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {multiDayResults.successfulDays > 1 && (
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Avg slippage: <span className={multiDayResults.avgSlippageBps < 0 ? 'text-green-500' : 'text-red-400'}>
+                    {multiDayResults.avgSlippageBps.toFixed(2)} bps
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
           <ChartPanel
             candles={candles}
             chartData={chartData}
@@ -486,6 +618,7 @@ export default function DashboardLayout({
             mode={mode as 'backtest' | 'realtime'}
             realtimePriceUpdate={realtimePriceUpdate}
             onPretradeDataChange={setPretradeData}
+            backendBuySignals={activeBuySignals}
           />
         </div>
 
@@ -531,7 +664,26 @@ export default function DashboardLayout({
                   onPreferencesChange={onPreferencesChange}
                 />
               )}
-              {backtestResults && (
+              {/* Backend multi-day results */}
+              {activeDayResult && activeDayResult.status === 'OK' && (
+                <div className="border-t border-border">
+                  <button
+                    onClick={() => setResultsCollapsed(!resultsCollapsed)}
+                    className="w-full px-4 py-2 flex items-center justify-between text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                  >
+                    <span>Backtest Results — {activeDate}</span>
+                    {resultsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                  {!resultsCollapsed && (
+                    <BenchmarkingPanel
+                      dailyResult={activeDayResult}
+                      multiDayResponse={multiDayResults!}
+                    />
+                  )}
+                </div>
+              )}
+              {/* Legacy local results (fallback) */}
+              {backtestResults && !multiDayResults && (
                 <div className="border-t border-border">
                   <button
                     onClick={() => setResultsCollapsed(!resultsCollapsed)}
@@ -541,7 +693,12 @@ export default function DashboardLayout({
                     {resultsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                   </button>
                   {!resultsCollapsed && (
-                    <BenchmarkingPanel results={backtestResults} candles={candles} />
+                    <BenchmarkingPanel
+                      dailyResult={null}
+                      multiDayResponse={null}
+                      legacyResults={backtestResults}
+                      legacyCandles={candles}
+                    />
                   )}
                 </div>
               )}
@@ -557,8 +714,27 @@ export default function DashboardLayout({
         )}
       </div>
 
-      {/* Footer - Execution Summary */}
-      {backtestResults && (
+      {/* Footer - Execution Summary (backend) */}
+      {activeDayResult && activeDayResult.status === 'OK' && (
+        <div className="bg-card border-t border-border">
+          <button
+            onClick={() => setSummaryCollapsed(!summaryCollapsed)}
+            className="w-full px-6 py-2 flex items-center justify-between text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+          >
+            <span>Execution Summary — {activeDate}</span>
+            {summaryCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
+          {!summaryCollapsed && (
+            <ExecutionSummary
+              dailyResult={activeDayResult}
+              multiDayResponse={multiDayResults!}
+              params={strategyParams}
+            />
+          )}
+        </div>
+      )}
+      {/* Legacy local results footer */}
+      {backtestResults && !multiDayResults && (
         <div className="bg-card border-t border-border">
           <button
             onClick={() => setSummaryCollapsed(!summaryCollapsed)}
@@ -568,7 +744,12 @@ export default function DashboardLayout({
             {summaryCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
           {!summaryCollapsed && (
-            <ExecutionSummary results={backtestResults} params={strategyParams} />
+            <ExecutionSummary
+              dailyResult={null}
+              multiDayResponse={null}
+              legacyResults={backtestResults}
+              params={strategyParams}
+            />
           )}
         </div>
       )}

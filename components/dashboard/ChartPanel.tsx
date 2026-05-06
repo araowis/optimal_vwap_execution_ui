@@ -9,12 +9,11 @@ import {
   detectBuySignals,
 } from '@/lib/vwap-calculator';
 import { calculateVolumeBins } from '@/lib/volume-allocation';
-import { Candle, ChartDatapoint, CustomizationPrefs } from '@/lib/types';
+import { Candle, ChartDatapoint, CustomizationPrefs, BackendBuySignal } from '@/lib/types';
 import { vwapServerService, PretradeResponse } from '@/lib/vwap-server-service';
 import PriceChart from './charts/PriceChart';
 import VolumeChart from './charts/VolumeChart';
 import PretradeCharts from './charts/PretradeCharts';
-import LiveAdjustments from './charts/LiveAdjustments';
 
 interface ChartPanelProps {
   candles: Candle[];
@@ -29,6 +28,7 @@ interface ChartPanelProps {
   mode?: 'backtest' | 'realtime';
   realtimePriceUpdate?: { ltp: number; timestamp: number; volume?: number };
   onPretradeDataChange?: (data: PretradeResponse | null) => void;
+  backendBuySignals?: BackendBuySignal[];
 }
 
 const ChartPanel = memo(function ChartPanel({
@@ -44,6 +44,7 @@ const ChartPanel = memo(function ChartPanel({
   onTimeframeChange,
   mode = 'backtest',
   realtimePriceUpdate,
+  backendBuySignals = [],
 }: ChartPanelProps) {
   const [displayData, setDisplayData] = useState<ChartDatapoint[]>([]);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
@@ -53,7 +54,6 @@ const ChartPanel = memo(function ChartPanel({
   const [visibleDataPoints, setVisibleDataPoints] = useState(2000);
   const [volumeCurveVisible, setVolumeCurveVisible] = useState(true);
   const [showPretradeInMain, setShowPretradeInMain] = useState(false);
-  const [showLiveAdjustments, setShowLiveAdjustments] = useState(false);
 
   const availableKeys = useMemo(() => {
     if (candles.length === 0) return [] as string[];
@@ -443,39 +443,12 @@ const ChartPanel = memo(function ChartPanel({
           onClickedCandle={setClickedCandle}
           pretradeVolumeCurve={pretradeData?.eXt || []}
           showPretradeInMain={showPretradeInMain}
+          backendBuySignals={backendBuySignals}
         />
       </div>
 
-      {/* Pretrade / Live Toggle */}
-      <div className="flex items-center gap-2 px-1">
-        <button
-          onClick={() => setShowLiveAdjustments(false)}
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
-            !showLiveAdjustments
-              ? 'bg-primary/10 text-primary border-primary/30'
-              : 'bg-background text-muted-foreground border-border hover:bg-secondary/50'
-          }`}
-        >
-          Pretrade
-        </button>
-        <button
-          onClick={() => setShowLiveAdjustments(true)}
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
-            showLiveAdjustments
-              ? 'bg-primary/10 text-primary border-primary/30'
-              : 'bg-background text-muted-foreground border-border hover:bg-secondary/50'
-          }`}
-        >
-          Live Adjustments
-        </button>
-      </div>
-
-      {/* Bottom Charts */}
-      {showLiveAdjustments ? (
-        <LiveAdjustments instrumentKey={instrumentKey} />
-      ) : (
-        <PretradeCharts pretradeData={pretradeData} />
-      )}
+      {/* Pretrade Charts */}
+      <PretradeCharts pretradeData={pretradeData} />
 
       {/* Hover Info (fixed height to prevent chart resize jitter) */}
       <div className="bg-secondary/50 rounded-lg p-3 border border-border h-20 overflow-hidden">

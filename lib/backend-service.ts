@@ -1,9 +1,9 @@
 /**
  * Backend Service - Integration with Java VWAP Backend
- * Handles communication with the Java Spark backend running on localhost:4567
+ * Handles communication with the Java Spring Boot backend running on localhost:8080
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4567';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
 export interface SummaryStats {
   totalShares: number;
@@ -174,6 +174,23 @@ class BackendService {
     const response = await this.fetch('/api/run-strategy', {
       method: 'POST',
       body: JSON.stringify(params),
+    });
+    return response.json();
+  }
+
+  /**
+   * Run multi-day backtest using the new /api/backtest endpoint
+   */
+  async runMultiDayBacktest(request: {
+    instrumentKey: string;
+    bins: number;
+    lambda: number;
+    totalQty: number;
+    dates: string[];
+  }): Promise<import('./types').BacktestApiResponse> {
+    const response = await this.fetch('/api/backtest', {
+      method: 'POST',
+      body: JSON.stringify(request),
     });
     return response.json();
   }

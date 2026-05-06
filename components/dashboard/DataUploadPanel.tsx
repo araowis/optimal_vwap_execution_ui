@@ -14,6 +14,13 @@ interface DataUploadPanelProps {
   onWatchlistStockSelect?: (stock: any) => void;
   onUpstoxTokenChange?: (token: string | null) => void;
   wsConnected?: boolean;
+  /** Called when the import instrument/dates change in backtest mode */
+  onImportContextChange?: (ctx: {
+    instrumentKey: string;
+    instrumentName: string;
+    startDate: string;
+    endDate: string;
+  }) => void;
 }
 
 interface Instrument {
@@ -50,6 +57,7 @@ export default function DataUploadPanel({
   onWatchlistStockSelect,
   onUpstoxTokenChange,
   wsConnected = false,
+  onImportContextChange,
 }: DataUploadPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -343,6 +351,15 @@ export default function DataUploadPanel({
     setInstrumentQuery(instrument.trading_symbol);
     setSelectedInstrument(instrument);
     setShowSuggestions(false);
+    // Propagate context up
+    if (onImportContextChange) {
+      onImportContextChange({
+        instrumentKey: instrument.instrument_key,
+        instrumentName: instrument.name || instrument.trading_symbol,
+        startDate,
+        endDate,
+      });
+    }
   };
 
   const handleImportFromUpstox = async () => {
@@ -713,7 +730,17 @@ export default function DataUploadPanel({
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    if (onImportContextChange && instrumentKey) {
+                      onImportContextChange({
+                        instrumentKey,
+                        instrumentName: selectedInstrument?.name || instrumentQuery,
+                        startDate: e.target.value,
+                        endDate,
+                      });
+                    }
+                  }}
                   className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
                   disabled={loading}
                 />
@@ -723,7 +750,17 @@ export default function DataUploadPanel({
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    if (onImportContextChange && instrumentKey) {
+                      onImportContextChange({
+                        instrumentKey,
+                        instrumentName: selectedInstrument?.name || instrumentQuery,
+                        startDate,
+                        endDate: e.target.value,
+                      });
+                    }
+                  }}
                   className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
                   disabled={loading}
                 />
