@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Play, Settings, Maximize2, X, Calendar } from 'lucide-react';
+import { Play, Maximize2, X, Calendar } from 'lucide-react';
 import { StrategyParams } from '@/lib/types';
 
 interface ParametersPanelProps {
@@ -184,17 +184,6 @@ export default function ParametersPanel({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs text-muted-foreground">Order Type</label>
-                <select
-                  value={localParams.orderType}
-                  onChange={(e) => handleChange('orderType', e.target.value as 'LIMIT' | 'MARKET')}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                >
-                  <option>LIMIT</option>
-                  <option>MARKET</option>
-                </select>
-              </div>
             </div>
 
             {/* ── Backtest Context (from Import section) ──────────────── */}
@@ -220,108 +209,6 @@ export default function ParametersPanel({
                   <p className="text-xs text-muted-foreground">
                     Select a stock and date range in <strong>Import from Upstox</strong> above to configure the backtest target
                   </p>
-                </div>
-              )}
-            </div>
-
-            {/* ── Risk Management ─────────────────────────────────────── */}
-            <div className="space-y-3 border-t border-border pt-4">
-              <h3 className="text-sm font-medium text-foreground">Risk Management</h3>
-
-              <div>
-                <label className="text-xs text-muted-foreground">Max Slippage (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={localParams.maxSlippage}
-                  onChange={(e) => handleChange('maxSlippage', parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">VWAP Deviation Threshold (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={localParams.vwapDeviation}
-                  onChange={(e) => handleChange('vwapDeviation', parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">Min Volume Threshold</label>
-                <input
-                  type="number"
-                  value={localParams.minVolumeThreshold}
-                  onChange={(e) => handleChange('minVolumeThreshold', parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                />
-              </div>
-            </div>
-
-            {/* ── Execution Window ────────────────────────────────────── */}
-            <div className="space-y-3 border-t border-border pt-4">
-              <h3 className="text-sm font-medium text-foreground">Execution Window</h3>
-              <select
-                value={localParams.executionTimeframe}
-                onChange={(e) => handleChange('executionTimeframe', e.target.value as 'INTRADAY' | 'MULTI_DAY')}
-                className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm"
-              >
-                <option value="INTRADAY">Intraday</option>
-                <option value="MULTI_DAY">Multi-Day</option>
-              </select>
-            </div>
-
-            {/* ── Transaction Costs ───────────────────────────────────── */}
-            <div className="space-y-3 border-t border-border pt-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  Transactional Costs
-                </h3>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localParams.enableTxCosts || false}
-                    onChange={(e) => handleChange('enableTxCosts', e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-background text-primary focus:ring-2 focus:ring-primary"
-                  />
-                  <span className="text-xs text-muted-foreground">Enable</span>
-                </label>
-              </div>
-
-              {localParams.enableTxCosts && (
-                <div className="space-y-2 pl-2 border-l-2 border-border">
-                  {[
-                    { label: 'Brokerage (%)', field: 'brokeragePercent', step: '0.01', default: 0.12 },
-                    { label: 'STT (%)', field: 'sttPercent', step: '0.01', default: 0.025 },
-                    { label: 'GST (%)', field: 'gstPercent', step: '0.01', default: 18 },
-                    { label: 'Exchange Fee (%)', field: 'exchangeFeePercent', step: '0.00001', default: 0.00345 },
-                    { label: 'Spread (bps)', field: 'spreadBps', step: '0.1', default: 5 },
-                  ].map(({ label, field, step, default: def }) => (
-                    <div key={field}>
-                      <label className="text-xs text-muted-foreground">{label}</label>
-                      <input
-                        type="number"
-                        step={step}
-                        value={(localParams.txCostConfig as any)?.[field] ?? def}
-                        onChange={(e) => {
-                          const updated = {
-                            ...localParams,
-                            txCostConfig: {
-                              ...localParams.txCostConfig,
-                              [field]: parseFloat(e.target.value) || 0,
-                            },
-                          };
-                          setLocalParams(updated);
-                          onParamsChange(updated);
-                        }}
-                        className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
-                      />
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

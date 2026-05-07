@@ -96,6 +96,7 @@ export default function DashboardLayout({
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [customizationCollapsed, setCustomizationCollapsed] = useState(mode === 'realtime');
+  const [isBackendDataLive, setIsBackendDataLive] = useState(false);
 
   const handlePriceUpdate = useCallback((data: any) => {
     // console.log('Real-time price update:', data);
@@ -106,11 +107,11 @@ export default function DashboardLayout({
     });
   }, []);
 
-  // WebSocket for real-time price streaming
+  // WebSocket for real-time price streaming (Upstox fallback)
   const { isConnected: wsConnected } = useUpstoxWebSocket({
     accessToken: upstoxAccessToken,
     instrumentKey: selectedWatchlistStock?.instrument_key || null,
-    enabled: mode === 'realtime' && !!selectedWatchlistStock && !!upstoxAccessToken,
+    enabled: mode === 'realtime' && !!selectedWatchlistStock && !!upstoxAccessToken && !isBackendDataLive,
     onPriceUpdate: handlePriceUpdate,
   });
 
@@ -124,7 +125,26 @@ export default function DashboardLayout({
       pollingIntervalRef.current = null;
     }
 
-    // Don't poll if WebSocket is connected or not in realtime mode
+    // Backend polling for latest market data (1 second interval)
+    if (mode === 'realtime' && selectedWatchlistStock?.instrument_key && isBackendDataLive) {
+      pollingIntervalRef.current = setInterval(async () => {
+        try {
+          const res = await vwapServerService.getMarketDataLatest(selectedWatchlistStock.instrument_key);
+          if (res && res.current) {
+            handlePriceUpdate({
+              ltp: res.current.close,
+              timestamp: res.current.timestamp,
+              volume: res.current.volume,
+            });
+          }
+        } catch (e) {
+          // Backend not returning latest for this stock
+        }
+      }, 1000);
+      return;
+    }
+
+    // Don't poll Upstox if WebSocket is connected or not in realtime mode
     if (mode !== 'realtime' || !upstoxAccessToken || !selectedWatchlistStock?.instrument_key || wsConnected) {
       return;
     }
@@ -185,6 +205,22 @@ export default function DashboardLayout({
       }
     };
   }, [mode, upstoxAccessToken, selectedWatchlistStock, wsConnected]);
+  
+  // Reset state when switching modes to ensure clean transition
+  useEffect(() => {
+    setCandles([]);
+    setChartData([]);
+    setMultiDayResults(null);
+    setBacktestResults(null);
+    setActiveDate('');
+    setRealtimePriceUpdate(undefined);
+    setPretradeData(null);
+    setIsBacktesting(false);
+    setBackTestProgress(0);
+    setBackTestMessage('');
+    setImportContext(null);
+    setSelectedWatchlistStock(null);
+  }, [mode]);
 
   const handleDataUpload = (data: Candle[], logo?: string, name?: string) => {
     setCandles(data);
@@ -211,56 +247,99 @@ export default function DashboardLayout({
     }
 
     try {
-      // Determine date range and interval based on mode
-      let fromDate: string;
-      let toDate: string;
-      let interval: 'day' | '1minute';
+      let fetchedCandles: any[] = [];
+      let usedBackend = false;
+      setIsBackendDataLive(false);
 
       if (mode === 'realtime') {
-        toDate = getTodayDate();
-        fromDate = getTodayDate();
-        interval = '1minute';
-      } else {
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-        toDate = today.toISOString().split('T')[0];
-        fromDate = thirtyDaysAgo.toISOString().split('T')[0];
-        interval = 'day';
+        try {
+          console.log('[DEBUG] Attempting to fetch backend candles for:', stock.instrument_key);
+          const backendRes = await vwapServerService.getMarketDataCandles(stock.instrument_key);
+          console.log('[DEBUG] Backend candles response:', backendRes);
+          
+          if (backendRes && backendRes.candles && backendRes.candles.length > 0) {
+            fetchedCandles = backendRes.candles.map((c: any) => ({
+              timestamp: new Date(c.timestamp),
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+              volume: c.volume
+            }));
+            usedBackend = true;
+            setIsBackendDataLive(true);
+            console.log('[DEBUG] Successfully mapped backend candles. Count:', fetchedCandles.length);
+            
+            // Also grab the current tick from the candles response to initialize realtimePriceUpdate
+            if (backendRes.current) {
+              console.log('[DEBUG] Setting initial realtime update from backend current:', backendRes.current);
+              setRealtimePriceUpdate({
+                ltp: backendRes.current.close,
+                timestamp: backendRes.current.timestamp,
+                volume: backendRes.current.volume,
+              });
+            }
+          } else {
+            console.log('[DEBUG] Backend candles response was empty or invalid structure');
+          }
+        } catch (err) {
+          console.log('[DEBUG] Backend candles not available, falling back to Upstox API', err);
+        }
       }
 
-      let fetchedCandles = await fetchHistoricalCandles({
-        accessToken: upstoxAccessToken,
-        instrumentKey: stock.instrument_key,
-        interval,
-        fromDate,
-        toDate,
-      });
+      if (!usedBackend) {
+        console.log('[DEBUG] Falling back to Upstox historical candles');
+        // Determine date range and interval based on mode
+        let fromDate: string;
+        let toDate: string;
+        let interval: 'day' | '1minute';
 
-      // In realtime mode, Upstox can return empty candles for today early in the session.
-      // Fallback to include yesterday->today to ensure the intraday chart is visible.
-      if (mode === 'realtime' && fetchedCandles.length === 0) {
+        if (mode === 'realtime') {
+          toDate = getTodayDate();
+          fromDate = getTodayDate();
+          interval = '1minute';
+        } else {
+          const today = new Date();
+          const thirtyDaysAgo = new Date(today);
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          toDate = today.toISOString().split('T')[0];
+          fromDate = thirtyDaysAgo.toISOString().split('T')[0];
+          interval = 'day';
+        }
+
         fetchedCandles = await fetchHistoricalCandles({
           accessToken: upstoxAccessToken,
           instrumentKey: stock.instrument_key,
-          interval: '1minute',
-          fromDate: getYesterdayDate(),
-          toDate: getTodayDate(),
+          interval,
+          fromDate,
+          toDate,
         });
-      }
 
-      // If still empty, try last 7 days for intraday data
-      if (mode === 'realtime' && fetchedCandles.length === 0) {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        fetchedCandles = await fetchHistoricalCandles({
-          accessToken: upstoxAccessToken,
-          instrumentKey: stock.instrument_key,
-          interval: '1minute',
-          fromDate: sevenDaysAgo.toISOString().split('T')[0],
-          toDate: getTodayDate(),
-        });
+        // In realtime mode, Upstox can return empty candles for today early in the session.
+        // Fallback to include yesterday->today to ensure the intraday chart is visible.
+        if (mode === 'realtime' && fetchedCandles.length === 0) {
+          fetchedCandles = await fetchHistoricalCandles({
+            accessToken: upstoxAccessToken,
+            instrumentKey: stock.instrument_key,
+            interval: '1minute',
+            fromDate: getYesterdayDate(),
+            toDate: getTodayDate(),
+          });
+        }
+
+        // If still empty, try last 7 days for intraday data
+        if (mode === 'realtime' && fetchedCandles.length === 0) {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          fetchedCandles = await fetchHistoricalCandles({
+            accessToken: upstoxAccessToken,
+            instrumentKey: stock.instrument_key,
+            interval: '1minute',
+            fromDate: sevenDaysAgo.toISOString().split('T')[0],
+            toDate: getTodayDate(),
+          });
+        }
       }
 
       setCandles(fetchedCandles);
@@ -273,24 +352,6 @@ export default function DashboardLayout({
       setCompanyLogo(stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : '');
     }
   }, [mode, upstoxAccessToken]);
-
-  // Handle mode switches and auto-refresh data
-  useEffect(() => {
-    // console.log('Mode changed to:', mode);
-    
-    // Clear backtest specific results when switching
-    setBacktestResults(null);
-    setBackTestProgress(0);
-    setBackTestMessage('');
-    
-    // If we have a stock selected, refresh its data for the new mode
-    if (selectedWatchlistStock) {
-      handleWatchlistStockSelect(selectedWatchlistStock);
-    } else {
-      setCandles([]);
-      setChartData([]);
-    }
-  }, [mode, selectedWatchlistStock, handleWatchlistStockSelect]);
 
   // Reset real-time update when stock changes
   useEffect(() => {
@@ -634,15 +695,7 @@ export default function DashboardLayout({
               className="bg-card rounded-r-lg border border-border flex flex-col overflow-hidden"
               style={{ width: `${rightSidebarWidth}px` }}
             >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                {mode === 'realtime' && (
-                  <button
-                    onClick={() => setCustomizationCollapsed(!customizationCollapsed)}
-                    className="text-xs text-primary hover:text-primary/80 font-medium"
-                  >
-                    {customizationCollapsed ? 'Show Settings' : 'Hide Settings'}
-                  </button>
-                )}
+              <div className="flex items-center justify-end px-3 py-2 border-b border-border">
                 <button
                   onClick={() => setRightSidebarCollapsed(true)}
                   className="text-muted-foreground hover:text-foreground"
@@ -658,12 +711,22 @@ export default function DashboardLayout({
                 onClose={() => setSelectedWatchlistStock(null)}
                 pretradeData={pretradeData}
               />
-              {!customizationCollapsed && (
-                <CustomizationPanel
-                  preferences={customizationPrefs}
-                  onPreferencesChange={onPreferencesChange}
-                />
-              )}
+              {/* Customization Panel */}
+              <div className={`border-t border-border flex flex-col ${!customizationCollapsed ? 'flex-1 min-h-0' : 'flex-none'}`}>
+                <button
+                  onClick={() => setCustomizationCollapsed(!customizationCollapsed)}
+                  className="w-full px-4 py-2 flex items-center justify-between text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                >
+                  <span>Customization</span>
+                  {customizationCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
+                {!customizationCollapsed && (
+                  <CustomizationPanel
+                    preferences={customizationPrefs}
+                    onPreferencesChange={onPreferencesChange}
+                  />
+                )}
+              </div>
               {/* Backend multi-day results */}
               {activeDayResult && activeDayResult.status === 'OK' && (
                 <div className="border-t border-border">
@@ -676,6 +739,7 @@ export default function DashboardLayout({
                   </button>
                   {!resultsCollapsed && (
                     <BenchmarkingPanel
+                      key={activeDate}
                       dailyResult={activeDayResult}
                       multiDayResponse={multiDayResults!}
                     />

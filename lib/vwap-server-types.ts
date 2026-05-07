@@ -119,6 +119,15 @@ export interface MarketDataLatestResponse {
 export interface MarketDataCandlesResponse {
   symbol: string;
   candles: any[];
+  current: {
+    timestamp: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  };
+  lastIndex: number;
 }
 
 // WebSocket Types

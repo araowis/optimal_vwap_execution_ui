@@ -173,6 +173,8 @@ export interface CustomizationPrefs {
   volumeColoring: 'MONOCHROME' | 'GRADIENT' | 'BY_PRICE';
   signalsVisible: boolean;
   signalMarkerSize: number;
+  signalMarkerType: 'PIN' | 'DOT' | 'ARROW';
+  showSignalLines: boolean;
   signalStrengthThreshold: number;
   theme: 'LIGHT' | 'DARK';
   hoverDetailsVisible: boolean;

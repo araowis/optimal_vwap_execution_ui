@@ -111,29 +111,26 @@ class VWAPServerService {
   }
 
   /**
-   * GET /api/marketdata/{instrumentId}/{symbol}/latest
+   * GET /api/marketdata/latest?instrumentKey=
    * Get latest candle and current tick
    */
-  async getMarketDataLatest(instrumentId: number, symbol: string): Promise<MarketDataLatestResponse> {
-    const response = await this.fetch(`/api/marketdata/${instrumentId}/${encodeURIComponent(symbol)}/latest`);
+  async getMarketDataLatest(instrumentKey: string): Promise<MarketDataLatestResponse> {
+    const response = await this.fetch(`/api/marketdata/latest?instrumentKey=${encodeURIComponent(instrumentKey)}`);
     return response.json();
   }
 
   /**
-   * GET /api/marketdata/{instrumentId}/{symbol}/candles
+   * GET /api/marketdata/candles?instrumentKey=&from=&to=
    * Get intraday candles
    */
   async getMarketDataCandles(
-    instrumentId: number,
-    symbol: string,
+    instrumentKey: string,
     from?: number,
     to?: number
   ): Promise<MarketDataCandlesResponse> {
-    let url = `/api/marketdata/${instrumentId}/${encodeURIComponent(symbol)}/candles`;
-    const params = new URLSearchParams();
-    if (from !== undefined) params.append('from', from.toString());
-    if (to !== undefined) params.append('to', to.toString());
-    if (params.toString()) url += `?${params.toString()}`;
+    let url = `/api/marketdata/candles?instrumentKey=${encodeURIComponent(instrumentKey)}`;
+    if (from !== undefined) url += `&from=${from}`;
+    if (to !== undefined) url += `&to=${to}`;
     
     const response = await this.fetch(url);
     return response.json();

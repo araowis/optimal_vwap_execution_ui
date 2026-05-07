@@ -54,6 +54,8 @@ const ChartPanel = memo(function ChartPanel({
   const [visibleDataPoints, setVisibleDataPoints] = useState(2000);
   const [volumeCurveVisible, setVolumeCurveVisible] = useState(true);
   const [showPretradeInMain, setShowPretradeInMain] = useState(false);
+  const [horizontalLines, setHorizontalLines] = useState<number[]>([]);
+  const [isAddingLine, setIsAddingLine] = useState(false);
 
   const availableKeys = useMemo(() => {
     if (candles.length === 0) return [] as string[];
@@ -198,7 +200,7 @@ const ChartPanel = memo(function ChartPanel({
       };
     });
 
-    newChartData = detectBuySignals(newChartData, 0.5, 0);
+
 
     setDisplayData(newChartData);
     onChartDataChange(newChartData);
@@ -287,9 +289,9 @@ const ChartPanel = memo(function ChartPanel({
 
   // Fetch pretrade data when instrument key changes
   useEffect(() => {
-    console.log('Pretrade fetch triggered. instrumentKey:', instrumentKey);
-    if (!instrumentKey) {
-      console.log('No instrumentKey, clearing pretrade data');
+    console.log('Pretrade fetch triggered. instrumentKey:', instrumentKey, 'mode:', mode);
+    if (!instrumentKey || mode === 'backtest') {
+      console.log('No instrumentKey or mode is backtest, clearing pretrade data');
       setPretradeData(null);
       onPretradeDataChange?.(null);
       return;
@@ -317,13 +319,27 @@ const ChartPanel = memo(function ChartPanel({
     };
 
     fetchPretrade();
-  }, [instrumentKey, onPretradeDataChange]);
+  }, [instrumentKey, mode, onPretradeDataChange]);
 
   const sampledDisplayData = useMemo(() => {
     if (displayData.length <= visibleDataPoints) return displayData;
+    
     const step = Math.ceil(displayData.length / visibleDataPoints);
-    return displayData.filter((_, idx) => idx % step === 0);
-  }, [displayData, visibleDataPoints]);
+    
+    // Identify indices that HAVE backend signals
+    const signalIndices = new Set<number>();
+    if (backendBuySignals.length > 0) {
+      const signalTimes = new Set(backendBuySignals.map(s => s.time));
+      displayData.forEach((d, idx) => {
+        const timeStr = d.candle.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        if (signalTimes.has(timeStr)) {
+          signalIndices.add(idx);
+        }
+      });
+    }
+
+    return displayData.filter((_, idx) => idx % step === 0 || signalIndices.has(idx));
+  }, [displayData, visibleDataPoints, backendBuySignals]);
 
   if (candles.length === 0 && mode === 'backtest') {
     return (
@@ -427,6 +443,27 @@ const ChartPanel = memo(function ChartPanel({
               {showPretradeInMain ? 'Pretrade: Main' : 'Pretrade: Below'}
             </button>
           )}
+
+          <button
+            onClick={() => setIsAddingLine(!isAddingLine)}
+            className={`text-xs px-2 py-1 rounded border transition-colors ${
+              isAddingLine 
+                ? 'bg-blue-500 text-white border-blue-600' 
+                : 'bg-background border-border text-foreground hover:bg-secondary'
+            }`}
+            title="Click on chart to add a horizontal price line"
+          >
+            {isAddingLine ? 'Click Chart...' : '+ Add Line'}
+          </button>
+          
+          {horizontalLines.length > 0 && (
+            <button
+              onClick={() => setHorizontalLines([])}
+              className="text-xs bg-red-500/10 text-red-500 border border-red-500/20 rounded px-2 py-1 hover:bg-red-500/20"
+            >
+              Clear Lines
+            </button>
+          )}
         </div>
       </div>
 
@@ -440,23 +477,37 @@ const ChartPanel = memo(function ChartPanel({
           volumeCurveVisible={volumeCurveVisible}
           volumeCurveData={pretradeData?.eXt || []}
           timeLabels={pretradeData?.timeLabels || []}
-          onClickedCandle={setClickedCandle}
+          onClickedCandle={(idx) => {
+            if (isAddingLine && idx !== null && sampledDisplayData[idx]) {
+              setHorizontalLines(prev => [...prev, sampledDisplayData[idx].candle.close]);
+              setIsAddingLine(false);
+            }
+            setClickedCandle(idx);
+          }}
           pretradeVolumeCurve={pretradeData?.eXt || []}
           showPretradeInMain={showPretradeInMain}
           backendBuySignals={backendBuySignals}
+          horizontalLines={horizontalLines}
         />
       </div>
 
       {/* Pretrade Charts */}
-      <PretradeCharts pretradeData={pretradeData} />
+      {!showPretradeInMain && <PretradeCharts pretradeData={pretradeData} />}
 
-      {/* Hover Info (fixed height to prevent chart resize jitter) */}
-      <div className="bg-secondary/50 rounded-lg p-3 border border-border h-20 overflow-hidden">
-        {(hoveredCandle !== null && displayData[hoveredCandle]) || (clickedCandle !== null && displayData[clickedCandle]) ? (
-          <DatapointInfo datapoint={displayData[hoveredCandle !== null ? hoveredCandle : clickedCandle!]} showVolume={clickedCandle !== null} />
+      {/* Hover Info (Responsive container) */}
+      <div className="bg-secondary/30 backdrop-blur-sm rounded-xl p-3 border border-border/50 min-h-[5rem] flex items-center shadow-inner">
+        {(hoveredCandle !== null && sampledDisplayData[hoveredCandle]) || (clickedCandle !== null && sampledDisplayData[clickedCandle]) ? (
+          <DatapointInfo 
+            datapoint={sampledDisplayData[hoveredCandle !== null ? hoveredCandle : clickedCandle!]} 
+            showVolume={clickedCandle !== null} 
+            backendSignals={backendBuySignals}
+          />
         ) : (
-          <div className="h-full flex items-center">
-            <p className="text-xs text-muted-foreground">Hover on the chart to see candle details, click to see volume</p>
+          <div className="w-full flex items-center justify-center py-2">
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-pulse"></span>
+              Hover on the chart to see candle details, click to see volume and metrics
+            </p>
           </div>
         )}
       </div>
@@ -464,57 +515,87 @@ const ChartPanel = memo(function ChartPanel({
   );
 });
 
-function DatapointInfo({ datapoint, showVolume }: { datapoint: ChartDatapoint; showVolume?: boolean }) {
+function DatapointInfo({ 
+  datapoint, 
+  showVolume, 
+  backendSignals = [] 
+}: { 
+  datapoint: ChartDatapoint; 
+  showVolume?: boolean;
+  backendSignals?: BackendBuySignal[];
+}) {
   const { candle, vwapData, deviationPercentage } = datapoint;
   const isUp = candle.close >= candle.open;
 
+  const timeStr = candle.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const sig = backendSignals.find(s => s.time === timeStr);
+
   return (
-    <div className="grid grid-cols-6 gap-3 text-xs">
-      <div>
-        <p className="text-muted-foreground">Time</p>
-        <p className="text-foreground font-medium">
-          {candle.timestamp.toLocaleTimeString()}
-        </p>
+    <div className="w-full flex flex-wrap items-center gap-x-8 gap-y-3">
+      {/* Time & Basic Price */}
+      <div className="flex items-center gap-6">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Time</p>
+          <p className="text-sm font-bold text-foreground">
+            {candle.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </p>
+        </div>
+        
+        <div className="flex gap-4 border-l border-border/40 pl-6">
+          {[
+            { label: 'O', val: candle.open },
+            { label: 'H', val: candle.high },
+            { label: 'L', val: candle.low },
+            { label: 'C', val: candle.close, highlight: true },
+          ].map((item) => (
+            <div key={item.label}>
+              <p className="text-[10px] text-muted-foreground font-medium">{item.label}</p>
+              <p className={`text-xs font-bold ${item.highlight ? (isUp ? 'text-green-500' : 'text-red-500') : 'text-foreground'}`}>
+                {item.val.toFixed(2)}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
-      <div>
-        <p className="text-muted-foreground">Open</p>
-        <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-          {candle.open.toFixed(2)}
-        </p>
+
+      {/* VWAP & Analytics */}
+      <div className="flex items-center gap-6 border-l border-border/40 pl-6">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">VWAP</p>
+          <p className="text-sm font-bold text-red-500">
+            {vwapData.vwap.toFixed(2)}
+          </p>
+        </div>
+
+        {showVolume && (
+          <div className="flex gap-6">
+            <div>
+              <p className="text-[10px] text-muted-foreground font-medium">Volume</p>
+              <p className="text-xs font-bold text-foreground">
+                {candle.volume >= 1000000 ? `${(candle.volume / 1000000).toFixed(2)}M` : `${(candle.volume / 1000).toFixed(1)}K`}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground font-medium">Deviation</p>
+              <p className={`text-xs font-bold ${deviationPercentage < 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {deviationPercentage.toFixed(3)}%
+              </p>
+            </div>
+          </div>
+        )}
       </div>
-      <div>
-        <p className="text-muted-foreground">High</p>
-        <p className="text-foreground font-medium">{candle.high.toFixed(2)}</p>
-      </div>
-      <div>
-        <p className="text-muted-foreground">Low</p>
-        <p className="text-foreground font-medium">{candle.low.toFixed(2)}</p>
-      </div>
-      <div>
-        <p className="text-muted-foreground">Close</p>
-        <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-          {candle.close.toFixed(2)}
-        </p>
-      </div>
-      <div>
-        <p className="text-muted-foreground">VWAP</p>
-        <p className="text-foreground font-medium">{vwapData.vwap.toFixed(2)}</p>
-      </div>
-      {showVolume && (
-        <>
-          <div>
-            <p className="text-muted-foreground">Volume</p>
-            <p className="text-foreground font-medium">
-              {candle.volume >= 1000000 ? `${(candle.volume / 1000000).toFixed(2)}M` : `${(candle.volume / 1000).toFixed(0)}K`}
+
+      {/* Buy Signal Indicator */}
+      {sig && (
+        <div className="ml-auto flex items-center gap-3 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1.5 animate-in fade-in zoom-in duration-300">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <div className="flex flex-col">
+            <p className="text-[10px] text-green-600 dark:text-green-400 font-bold leading-none uppercase tracking-tighter">Buy Signal</p>
+            <p className="text-xs text-green-700 dark:text-green-300 font-black">
+              Bin #{sig.binIdx} @ ₹{sig.execPrice.toFixed(2)}
             </p>
           </div>
-          <div>
-            <p className="text-muted-foreground">Deviation</p>
-            <p className={`font-medium ${deviationPercentage < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              {deviationPercentage.toFixed(3)}%
-            </p>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );

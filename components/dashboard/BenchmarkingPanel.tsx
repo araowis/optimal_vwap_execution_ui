@@ -108,20 +108,17 @@ export default function BenchmarkingPanel({
                 <span>Bin</span>
                 <span>Time</span>
                 <span>Price</span>
-                <span>Qty</span>
+                <span>Exec Qty</span>
               </div>
-              {r.buySignals.map((sig) => (
+              {r.buySignals.map((sig, idx) => (
                 <div
-                  key={sig.binIdx}
+                  key={`${sig.binIdx}-${sig.time}-${idx}`}
                   className="grid grid-cols-4 gap-1 text-xs text-foreground py-0.5 hover:bg-secondary/50 rounded px-1"
                 >
                   <span className="font-medium text-primary">#{sig.binIdx}</span>
                   <span>{sig.time}</span>
                   <span>₹{sig.execPrice.toFixed(1)}</span>
-                  <span>
-                    {sig.executedQty}
-                    <span className="text-muted-foreground">/{sig.qtyToBuy}</span>
-                  </span>
+                  <span>{sig.executedQty}</span>
                 </div>
               ))}
             </div>

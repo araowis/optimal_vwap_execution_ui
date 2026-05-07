@@ -24,6 +24,8 @@ export default function Home() {
     volumeColoring: 'BY_PRICE',
     signalsVisible: true,
     signalMarkerSize: 8,
+    signalMarkerType: 'PIN',
+    showSignalLines: false,
     signalStrengthThreshold: 30,
     theme: 'LIGHT',
     hoverDetailsVisible: true,

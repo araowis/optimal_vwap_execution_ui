@@ -44,10 +44,8 @@ export default function CustomizationPanel({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-foreground sticky top-0 bg-card">
-        Customization
-      </h2>
+    <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
+
 
       {/* Chart Settings */}
       <div className="border border-border rounded-lg">
@@ -314,16 +312,44 @@ export default function CustomizationPanel({
 
         {expandedSections.signals && (
           <div className="border-t border-border p-4 space-y-4 bg-background">
-            <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={preferences.signalsVisible}
+            <div className="flex flex-col gap-3">
+              <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={preferences.signalsVisible}
+                  onChange={(e) =>
+                    handleChange('signalsVisible', e.target.checked)
+                  }
+                />
+                Show Signals
+              </label>
+
+              <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={preferences.showSignalLines}
+                  onChange={(e) =>
+                    handleChange('showSignalLines', e.target.checked)
+                  }
+                />
+                Vertical Signal Lines
+              </label>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground">Marker Style</label>
+              <select
+                value={preferences.signalMarkerType}
                 onChange={(e) =>
-                  handleChange('signalsVisible', e.target.checked)
+                  handleChange('signalMarkerType', e.target.value)
                 }
-              />
-              Show Signals
-            </label>
+                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+              >
+                <option value="PIN">Location Pin</option>
+                <option value="DOT">Simple Dot</option>
+                <option value="ARROW">Upward Arrow</option>
+              </select>
+            </div>
 
             <div>
               <label className="text-xs text-muted-foreground">Marker Size</label>

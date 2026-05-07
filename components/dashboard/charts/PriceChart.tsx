@@ -18,20 +18,49 @@ import { ChartDatapoint, CustomizationPrefs, BackendBuySignal } from '@/lib/type
 
 // ── Custom green "pin" dot for backend buy signals ────────────────────────────
 function BackendSignalDot(props: any) {
-  const { cx, cy, payload } = props;
+  const { cx, cy, payload, markerType = 'PIN', markerSize = 8 } = props;
   if (!payload?.backendSignalPrice) return null;
 
-  const r = 8;
+  const r = markerSize;
+  
+  if (markerType === 'DOT') {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={r + 4} fill="#22c55e" fillOpacity={0.15} />
+        <circle cx={cx} cy={cy} r={r} fill="#22c55e" stroke="#ffffff" strokeWidth={2} />
+      </g>
+    );
+  }
+
+  if (markerType === 'ARROW') {
+    return (
+      <g>
+        <path
+          d={`M ${cx} ${cy} L ${cx - r} ${cy + r * 1.5} L ${cx + r} ${cy + r * 1.5} Z`}
+          fill="#22c55e"
+          stroke="#ffffff"
+          strokeWidth={1.5}
+        />
+      </g>
+    );
+  }
+
+  // Default: PIN
   return (
     <g style={{ cursor: 'pointer' }}>
+      {/* Upward pin triangle — tip pointing at price (cy) */}
+      <polygon
+        points={`${cx - 5},${cy + r + 8} ${cx + 5},${cy + r + 8} ${cx},${cy}`}
+        fill="#22c55e"
+      />
       {/* Outer glow ring */}
-      <circle cx={cx} cy={cy} r={r + 5} fill="#22c55e" fillOpacity={0.15} />
+      <circle cx={cx} cy={cy + r + 8} r={r + 4} fill="#22c55e" fillOpacity={0.15} />
       {/* Main green circle */}
-      <circle cx={cx} cy={cy} r={r} fill="#22c55e" stroke="#ffffff" strokeWidth={2.5} />
+      <circle cx={cx} cy={cy + r + 8} r={r} fill="#22c55e" stroke="#ffffff" strokeWidth={2.5} />
       {/* "B" label inside the circle */}
       <text
         x={cx}
-        y={cy + 1}
+        y={cy + r + 9}
         textAnchor="middle"
         dominantBaseline="middle"
         fill="#ffffff"
@@ -40,18 +69,17 @@ function BackendSignalDot(props: any) {
       >
         B
       </text>
-      {/* Downward pin triangle */}
-      <polygon
-        points={`${cx - 5},${cy + r + 1} ${cx + 5},${cy + r + 1} ${cx},${cy + r + 8}`}
-        fill="#22c55e"
-      />
     </g>
   );
 }
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
-function PriceTooltip({ active, payload, label }: any) {
+function PriceTooltip({ active, payload, label, coordinate }: any) {
   if (!active || !payload || !payload.length) return null;
+
+  // Smart positioning: If we're on the right side of the chart, flip the tooltip left
+  const isRightSide = coordinate && coordinate.x > 800; // Rough estimate or use relative %
+  const transform = isRightSide ? 'translateX(-100%) translateX(-20px)' : 'translateX(20px)';
 
   const row = payload[0]?.payload;
   if (!row) return null;
@@ -59,19 +87,24 @@ function PriceTooltip({ active, payload, label }: any) {
   const ts = typeof row.timestamp === 'number' ? new Date(row.timestamp) : new Date(label);
   const isUp = row.close >= row.open;
   const priceColor = isUp ? '#10b981' : '#f43f5e';
-  const sig: BackendBuySignal | undefined = row.backendSignalMeta;
+  const signals: BackendBuySignal[] = row.backendSignalMetaList ?? [];
+  const hasSignals = signals.length > 0;
 
   return (
     <div
       style={{
         backgroundColor: 'var(--card)',
-        border: `1.5px solid ${sig ? '#22c55e' : 'var(--border)'}`,
+        border: `1.5px solid ${hasSignals ? '#22c55e' : 'var(--border)'}`,
         borderRadius: 12,
         padding: '10px 14px',
-        boxShadow: sig
+        boxShadow: hasSignals
           ? '0 0 0 3px rgba(34,197,94,0.12), 0 12px 24px -10px rgba(0,0,0,0.3)'
           : '0 10px 20px -10px rgba(0,0,0,0.25)',
         minWidth: 210,
+        transform,
+        transition: 'transform 0.1s ease-out',
+        pointerEvents: 'none',
+        zIndex: 50,
       }}
     >
       {/* Time header */}
@@ -79,11 +112,12 @@ function PriceTooltip({ active, payload, label }: any) {
         {ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
       </div>
 
-      {/* Buy signal detail panel */}
-      {sig && (
+      {/* Buy signal detail panel(s) */}
+      {signals.map((sig, idx) => (
         <div
+          key={`${sig.binIdx}-${sig.time}-${idx}`}
           style={{
-            marginBottom: 8,
+            marginBottom: idx === signals.length - 1 ? 8 : 4,
             padding: '9px 10px',
             background: 'rgba(34,197,94,0.08)',
             borderRadius: 8,
@@ -97,15 +131,7 @@ function PriceTooltip({ active, payload, label }: any) {
             <tbody>
               {[
                 ['Exec Price', `₹${sig.execPrice.toFixed(2)}`, '#22c55e'],
-                ['Ordered Qty', sig.qtyToBuy.toLocaleString(), 'var(--foreground)'],
                 ['Executed Qty', sig.executedQty.toLocaleString(), 'var(--foreground)'],
-                [
-                  'Fill Rate',
-                  sig.qtyToBuy > 0
-                    ? `${((sig.executedQty / sig.qtyToBuy) * 100).toFixed(1)}%`
-                    : '—',
-                  sig.executedQty >= sig.qtyToBuy ? '#22c55e' : '#f97316',
-                ],
                 ['Cum Target', sig.cumTarget.toLocaleString(), 'var(--foreground)'],
                 ['x*', sig.xStar.toFixed(4), '#94a3b8'],
               ].map(([label, val, color]) => (
@@ -117,7 +143,7 @@ function PriceTooltip({ active, payload, label }: any) {
             </tbody>
           </table>
         </div>
-      )}
+      ))}
 
       {/* Standard OHLCV section */}
       <div style={{ display: 'grid', gap: 4, fontSize: 12 }}>
@@ -153,6 +179,7 @@ interface PriceChartProps {
   pretradeVolumeCurve?: number[];
   showPretradeInMain?: boolean;
   backendBuySignals?: BackendBuySignal[];
+  horizontalLines?: number[];
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -168,6 +195,7 @@ const PriceChart = React.memo(function PriceChart({
   pretradeVolumeCurve = [],
   showPretradeInMain = false,
   backendBuySignals = [],
+  horizontalLines = [],
 }: PriceChartProps) {
   const defaultPalette = {
     price: '#3b82f6',
@@ -215,7 +243,6 @@ const PriceChart = React.memo(function PriceChart({
         volume: d.candle.volume,
         volumeUp: isUp ? d.candle.volume : 0,
         volumeDown: !isUp ? d.candle.volume : 0,
-        buySignal: d.buySignal ? d.buySignal.price : null,
         bodyColor: isUp ? '#10b981' : '#f43f5e',
         wickColor: isUp ? '#10b981' : '#f43f5e',
       };
@@ -260,19 +287,22 @@ const PriceChart = React.memo(function PriceChart({
   const chartDataWithSignals = useMemo(() => {
     if (!backendBuySignals.length) return chartDataWithVolume;
 
-    const signalByTime = new Map<string, BackendBuySignal>();
-    backendBuySignals.forEach((sig) => signalByTime.set(sig.time, sig));
+    const signalByTime = new Map<string, BackendBuySignal[]>();
+    backendBuySignals.forEach((sig) => {
+      const existing = signalByTime.get(sig.time) || [];
+      signalByTime.set(sig.time, [...existing, sig]);
+    });
 
     return chartDataWithVolume.map((d) => {
       const date = new Date(d.timestamp);
       const hh = String(date.getHours()).padStart(2, '0');
       const mm = String(date.getMinutes()).padStart(2, '0');
-      const sig = signalByTime.get(`${hh}:${mm}`);
+      const sigs = signalByTime.get(`${hh}:${mm}`) || [];
       return {
         ...d,
-        // execPrice at the signal candle so the dot sits at the right Y position
-        backendSignalPrice: sig ? sig.execPrice : null,
-        backendSignalMeta: sig ?? null,
+        // average execPrice for the dot position if multiple exist
+        backendSignalPrice: sigs.length ? sigs[sigs.length - 1].execPrice : null,
+        backendSignalMetaList: sigs,
       };
     });
   }, [chartDataWithVolume, backendBuySignals]);
@@ -379,7 +409,7 @@ const PriceChart = React.memo(function PriceChart({
             tick={{ fill: 'var(--foreground)' }}
           />
 
-          {volumeCurveVisible && (
+          {(volumeCurveVisible || showPretradeInMain) && (
             <YAxis
               yAxisId="volume"
               orientation="right"
@@ -398,14 +428,85 @@ const PriceChart = React.memo(function PriceChart({
           <Tooltip
             content={<PriceTooltip />}
             cursor={{
-              stroke: 'var(--muted-foreground)',
+              stroke: 'var(--primary)',
               strokeWidth: 1,
               strokeDasharray: '3 3',
-              opacity: 0.8,
+              opacity: 0.4,
             }}
             allowEscapeViewBox={{ x: true, y: true }}
             position={{ y: 0 }}
+            isAnimationActive={false}
           />
+
+          {/* Dynamic X-Axis Crosshair Tag */}
+          {hoveredCandle !== null && data[hoveredCandle] && (
+            <ReferenceLine
+              x={hoveredCandle}
+              stroke="var(--primary)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              opacity={0.6}
+            />
+          )}
+
+          {/* Dynamic Y-Axis Crosshair Tag (Price) */}
+          {hoveredCandle !== null && data[hoveredCandle] && (
+            <ReferenceLine
+              y={data[hoveredCandle].candle.close}
+              stroke="var(--primary)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              opacity={0.6}
+              label={{
+                value: `₹${data[hoveredCandle].candle.close.toFixed(2)}`,
+                position: 'left',
+                fill: 'white',
+                fontSize: 10,
+                fontWeight: 700,
+                backgroundColor: 'var(--primary)',
+                padding: '2px 4px',
+              }}
+            />
+          )}
+
+          {/* Latest Price Line & Tag */}
+          {data.length > 0 && (
+            <ReferenceLine
+              y={data[data.length - 1].candle.close}
+              stroke={data[data.length - 1].candle.close >= data[data.length - 1].candle.open ? '#10b981' : '#ef4444'}
+              strokeWidth={1.2}
+              strokeDasharray="2 2"
+              label={{
+                value: `LAST: ₹${data[data.length - 1].candle.close.toFixed(2)}`,
+                position: 'insideRight',
+                fill: 'white',
+                fontSize: 10,
+                fontWeight: 800,
+                backgroundColor: data[data.length - 1].candle.close >= data[data.length - 1].candle.open ? '#10b981' : '#ef4444',
+                dx: -10,
+                dy: -10,
+              }}
+            />
+          )}
+
+          {/* Horizontal Drawing Lines */}
+          {horizontalLines.map((price, idx) => (
+            <ReferenceLine
+              key={`h-line-${idx}`}
+              y={price}
+              stroke="#3b82f6"
+              strokeWidth={1.5}
+              strokeDasharray="5 5"
+              label={{
+                value: `₹${price.toFixed(2)}`,
+                position: 'right',
+                fill: '#3b82f6',
+                fontSize: 10,
+                fontWeight: 'bold',
+                backgroundColor: 'var(--background)',
+              }}
+            />
+          ))}
 
           {/* Hover price reference line */}
           {hoveredCandle !== null && data[hoveredCandle] && (
@@ -508,17 +609,7 @@ const PriceChart = React.memo(function PriceChart({
             </>
           )}
 
-          {/* VWAP-based local buy signals */}
-          {prefs.signalsVisible && (
-            <Line
-              type="monotone"
-              dataKey="buySignal"
-              stroke={buySignalColor}
-              strokeWidth={2}
-              dot={{ r: prefs.signalMarkerSize, fill: buySignalColor, strokeWidth: 2 }}
-              name="Buy Signal"
-            />
-          )}
+
 
           {/* Price line / area */}
           {prefs.chartType === 'LINE' ? (
@@ -541,20 +632,54 @@ const PriceChart = React.memo(function PriceChart({
             />
           )}
 
-          {/* Backend Buy Signal markers (green pins) */}
+          {/* Backend Buy Signal markers (green pins/dots) */}
           {backendBuySignals.length > 0 && (
             <Line
               type="monotone"
               dataKey="backendSignalPrice"
-              stroke="transparent"
-              dot={<BackendSignalDot />}
-              activeDot={<BackendSignalDot />}
+              stroke="#22c55e"
+              strokeWidth={0}
+              dot={<BackendSignalDot markerType={prefs.signalMarkerType} markerSize={prefs.signalMarkerSize} />}
+              activeDot={<BackendSignalDot markerType={prefs.signalMarkerType} markerSize={prefs.signalMarkerSize} />}
               isAnimationActive={false}
-              name="Backend Signal"
-              legendType="none"
+              name="Buy Signal"
+              legendType="circle"
               connectNulls={false}
             />
           )}
+
+          {/* Vertical Signal Lines Overlay */}
+          {backendBuySignals.length > 0 && prefs.showSignalLines && (
+            <Line
+              type="monotone"
+              dataKey="backendSignalPrice"
+              stroke="#22c55e"
+              strokeWidth={1}
+              strokeDasharray="4 4"
+              dot={false}
+              activeDot={false}
+              isAnimationActive={false}
+              name="Signal Execution"
+              legendType="none"
+              connectNulls={false}
+              // This creates a vertical-ish line by drawing from 0 to price if we had a specific vertical line component,
+              // but in ComposedChart we'll use ReferenceLine for better vertical coverage.
+            />
+          )}
+
+          {/* Vertical lines for signals using ReferenceLine for full height */}
+          {prefs.showSignalLines && backendBuySignals.length > 0 && chartDataWithSignals.map((d, i) => (
+             d.backendSignalPrice ? (
+               <ReferenceLine
+                 key={`sig-line-${i}`}
+                 x={i}
+                 stroke="#22c55e"
+                 strokeWidth={1}
+                 strokeDasharray="3 3"
+                 opacity={0.3}
+               />
+             ) : null
+          ))}
 
           {/* Hidden High/Low for OHLC completeness */}
           <Line type="monotone" dataKey="high" stroke="#64748b" strokeWidth={1} dot={false} name="High" hide />
@@ -597,6 +722,7 @@ const PriceChart = React.memo(function PriceChart({
               connectNulls={false}
               name="Pretrade Volume"
               strokeDasharray="5 5"
+              yAxisId="volume"
             />
           )}
 

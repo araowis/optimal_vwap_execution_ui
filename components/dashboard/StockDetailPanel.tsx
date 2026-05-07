@@ -17,7 +17,7 @@ export default function StockDetailPanel({ stock, accessToken, mode, onClose, ws
   if (!stock) return null;
 
   return (
-    <div className="bg-card border-l border-border flex flex-col overflow-hidden h-full">
+    <div className="flex flex-col overflow-hidden flex-1 min-h-0 border-b border-border">
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           {stock.company?.domain && (
@@ -44,7 +44,7 @@ export default function StockDetailPanel({ stock, accessToken, mode, onClose, ws
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Order Book */}
+        {/* Order Book disabled for now to stop calling depth APIs
         {accessToken && (
           <OrderBook
             accessToken={accessToken}
@@ -53,6 +53,7 @@ export default function StockDetailPanel({ stock, accessToken, mode, onClose, ws
             wsConnected={wsConnected}
           />
         )}
+        */}
 
         {/* Stock Info */}
         <div className="space-y-2">
