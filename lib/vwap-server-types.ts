@@ -102,31 +102,26 @@ export interface CurrentTick {
   volume: number;
 }
 
+export interface MarketDataCandle {
+  instrumentKey: string;
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  vwap: number;
+}
+
 export interface MarketDataLatestResponse {
-  symbol: string;
-  candles: any[];
-  current: {
-    timestamp: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  };
+  candles: MarketDataCandle[];
+  current: MarketDataCandle;
   lastIndex: number;
 }
 
 export interface MarketDataCandlesResponse {
-  symbol: string;
-  candles: any[];
-  current: {
-    timestamp: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  };
+  candles: MarketDataCandle[];
+  current: MarketDataCandle;
   lastIndex: number;
 }
 

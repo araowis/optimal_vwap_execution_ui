@@ -15,7 +15,8 @@ export function calculateVWAP(candles: Candle[]): VWAPData[] {
     cumulativeTP += typicalPrice * candle.volume;
     cumulativeVolume += candle.volume;
     
-    const vwap = cumulativeVolume > 0 ? cumulativeTP / cumulativeVolume : candle.close;
+    // Use candle.vwap from backend if available, otherwise calculate locally
+    const vwap = candle.vwap !== undefined ? candle.vwap : (cumulativeVolume > 0 ? cumulativeTP / cumulativeVolume : candle.close);
     
     vwapResults.push({
       timestamp: candle.timestamp,
@@ -149,6 +150,7 @@ export function aggregateCandles(
         low: candle.low,
         close: candle.close,
         volume: candle.volume,
+        vwap: candle.vwap,
         oi: candle.oi || 0,
       };
     } else {
@@ -157,6 +159,7 @@ export function aggregateCandles(
       existing.low = Math.min(existing.low, candle.low);
       existing.close = candle.close;
       existing.volume += candle.volume;
+      existing.vwap = candle.vwap; // Take the latest vwap in the period
       if (candle.oi) existing.oi = (existing.oi || 0) + candle.oi;
     }
   });

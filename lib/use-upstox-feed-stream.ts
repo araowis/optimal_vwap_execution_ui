@@ -226,6 +226,12 @@ export function useUpstoxFeedStream({
 
   const subscriberIdRef = useRef<string>(makeId());
   const entryKeyRef = useRef<string | null>(null);
+  const onUpdateRef = useRef(onUpdate);
+
+  // Update callback ref on every render
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
   const disconnect = useCallback(() => {
     if (!entryKeyRef.current) return;
@@ -253,7 +259,7 @@ export function useUpstoxFeedStream({
 
     entry.subscribers.set(subscriberIdRef.current, {
       id: subscriberIdRef.current,
-      onUpdate,
+      onUpdate: (data) => onUpdateRef.current?.(data),
       onStatus: ({ isConnected: nextConnected, error: nextError }) => {
         setIsConnected(nextConnected);
         setError(nextError);
@@ -276,7 +282,7 @@ export function useUpstoxFeedStream({
       if (entryKeyRef.current === key) entryKeyRef.current = null;
       setIsConnected(false);
     };
-  }, [enabled, accessToken, instrumentKey, mode, onUpdate, disconnect]);
+  }, [enabled, accessToken, instrumentKey, mode, disconnect]);
 
   return {
     isConnected,

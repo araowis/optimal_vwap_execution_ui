@@ -53,6 +53,13 @@ export function useVwapWebSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const shouldConnectRef = useRef(autoConnect);
+  const handlersRef = useRef(handlers);
+
+  // Update handlers ref on every render so the latest handlers are always used
+  // without triggering the connect dependency loop
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -77,7 +84,7 @@ export function useVwapWebSocket(
         setConnected(true);
         setConnecting(false);
         setError(null);
-        handlers.onConnected?.();
+        handlersRef.current.onConnected?.();
       };
 
       ws.onmessage = (event) => {
@@ -93,21 +100,21 @@ export function useVwapWebSocket(
               const signal = message as WSSignalMessage;
               setLastSignal(signal);
               setSignalHistory((prev) => [...prev.slice(-99), signal]); // Keep last 100 signals
-              handlers.onSignal?.(signal);
+              handlersRef.current.onSignal?.(signal);
               break;
             }
 
             case 'calibration': {
               const calibration = message as WSCalibrationMessage;
               setLastCalibration(calibration);
-              handlers.onCalibration?.(calibration);
+              handlersRef.current.onCalibration?.(calibration);
               break;
             }
 
             case 'regime': {
               const regime = message as WSRegimeMessage;
               setLastRegime(regime);
-              handlers.onRegime?.(regime);
+              handlersRef.current.onRegime?.(regime);
               break;
             }
 
@@ -117,21 +124,21 @@ export function useVwapWebSocket(
         } catch (e) {
           const err = new Error(`Failed to parse WebSocket message: ${e}`);
           setError(err);
-          handlers.onError?.(err);
+          handlersRef.current.onError?.(err);
         }
       };
 
       ws.onerror = (event) => {
         const err = new Error('WebSocket error occurred');
         setError(err);
-        handlers.onError?.(err);
+        handlersRef.current.onError?.(err);
       };
 
       ws.onclose = () => {
         setConnected(false);
         setConnecting(false);
         wsRef.current = null;
-        handlers.onClose?.();
+        handlersRef.current.onClose?.();
 
         // Auto-reconnect if should still be connected
         if (shouldConnectRef.current) {
@@ -145,9 +152,9 @@ export function useVwapWebSocket(
       const err = new Error(`Failed to create WebSocket connection: ${e}`);
       setError(err);
       setConnecting(false);
-      handlers.onError?.(err);
+      handlersRef.current.onError?.(err);
     }
-  }, [reconnectInterval, handlers, clearReconnectTimeout]);
+  }, [reconnectInterval, clearReconnectTimeout]);
 
   const disconnect = useCallback(() => {
     shouldConnectRef.current = false;

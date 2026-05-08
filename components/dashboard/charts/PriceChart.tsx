@@ -13,6 +13,8 @@ import {
   Area,
   Brush,
   Legend,
+  Bar,
+  Cell,
 } from 'recharts';
 import { ChartDatapoint, CustomizationPrefs, BackendBuySignal } from '@/lib/types';
 
@@ -161,12 +163,123 @@ function PriceTooltip({ active, payload, label, coordinate }: any) {
           <div>L: {Number(row.low).toFixed(2)}</div>
           <div>C: {Number(row.close).toFixed(2)}</div>
         </div>
+        <div style={{ color: 'var(--muted-foreground)', display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+          <span>Volume</span>
+          <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{row.volume.toLocaleString()}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
+function CandlestickShape(props: any) {
+  const { x, width, y, height, payload } = props;
+  if (!payload) return null;
+
+  const { open, close, high, low } = payload;
+  const isUp = close >= open;
+  
+  // Premium Color Palette
+  const upColor = '#22c55e';      // Vibrant Green
+  const upBorder = '#166534';     // Dark Green Border
+  const downColor = '#ef4444';    // Vibrant Red
+  const downBorder = '#991b1b';   // Dark Red Border
+  
+  const bodyColor = isUp ? upColor : downColor;
+  const borderColor = isUp ? upBorder : downBorder;
+  const wickColor = isUp ? upColor : downColor;
+  
+  // y is the coordinate of the higher value in the range [low, high]
+  // height is the pixel distance between low and high
+  const range = Math.max(0.00001, high - low);
+  const pixelPerUnit = height / range;
+  
+  const yOpen = y + (high - open) * pixelPerUnit;
+  const yClose = y + (high - close) * pixelPerUnit;
+  const yHigh = y;
+  const yLow = y + height;
+  
+  const centerX = x + width / 2;
+  const candleWidth = Math.max(3, width * 0.75); // Slightly wider
+  const candleX = x + (width - candleWidth) / 2;
+
+  return (
+    <g className="candlestick-group">
+      {/* Wick (High to Low) */}
+      <line
+        x1={centerX}
+        y1={yHigh}
+        x2={centerX}
+        y2={yLow}
+        stroke={wickColor}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      {/* Body (Open to Close) */}
+      <rect
+        x={candleX}
+        y={Math.min(yOpen, yClose)}
+        width={candleWidth}
+        height={Math.max(1.5, Math.abs(yOpen - yClose))}
+        fill={bodyColor}
+        stroke={borderColor}
+        strokeWidth={0.5}
+        rx={1} // Slightly rounded corners for "premium" feel
+        className="transition-all duration-200"
+      />
+    </g>
+  );
+}
+
+function OHLCWebShape(props: any) {
+  const { x, width, y, height, payload } = props;
+  if (!payload) return null;
+
+  const { open, close, high, low, wickColor } = payload;
+  
+  const range = high - low;
+  const pixelPerUnit = range === 0 ? 0 : height / range;
+  
+  const yOpen = y + (high - open) * pixelPerUnit;
+  const yClose = y + (high - close) * pixelPerUnit;
+  const yHigh = y;
+  const yLow = y + height;
+  
+  const centerX = x + width / 2;
+  const tickWidth = width * 0.35;
+
+  return (
+    <g>
+      {/* Main vertical line */}
+      <line
+        x1={centerX}
+        y1={yHigh}
+        x2={centerX}
+        y2={yLow}
+        stroke={wickColor}
+        strokeWidth={1.5}
+      />
+      {/* Open tick (left) */}
+      <line
+        x1={centerX - tickWidth}
+        y1={yOpen}
+        x2={centerX}
+        y2={yOpen}
+        stroke={wickColor}
+        strokeWidth={1.5}
+      />
+      {/* Close tick (right) */}
+      <line
+        x1={centerX}
+        y1={yClose}
+        x2={centerX + tickWidth}
+        y2={yClose}
+        stroke={wickColor}
+        strokeWidth={1.5}
+      />
+    </g>
+  );
+}
 interface PriceChartProps {
   data: ChartDatapoint[];
   prefs: CustomizationPrefs;
@@ -245,6 +358,8 @@ const PriceChart = React.memo(function PriceChart({
         volumeDown: !isUp ? d.candle.volume : 0,
         bodyColor: isUp ? '#10b981' : '#f43f5e',
         wickColor: isUp ? '#10b981' : '#f43f5e',
+        // OHLC range for Recharts range bar
+        ohlcRange: [d.candle.low, d.candle.high],
       };
     });
 
@@ -256,6 +371,24 @@ const PriceChart = React.memo(function PriceChart({
       return true;
     });
   }, [data]);
+
+  // We need to calculate scaled Y coordinates for the custom shapes.
+  // We can do this in the chart by using the YAxis scale, but Recharts doesn't expose it easily.
+  // Instead, we'll use a dummy Bar and let Recharts pass the coordinates if we use multiple bars,
+  // or we can just use the raw values and a "trick" with the ComposedChart.
+  
+  // Actually, the most reliable way in Recharts is to use a Bar with a custom shape 
+  // where we pass the scale through props if we can, or we calculate it.
+  // But wait, Recharts' Bar component passes `x`, `y`, `width`, `height`. 
+  // If we want multiple Y coordinates, we have a problem.
+  
+  // WORKAROUND: In Recharts, if you have a Bar with dataKey="high" and another with dataKey="low",
+  // you get those coordinates. But we want one component to draw everything.
+  
+  // Let's use the payload and the YAxis scale.
+  // Since we don't have the scale here, we'll use the "Bar" trick:
+  // We'll pass the OHLC values and use them in the shape.
+  // Recharts passes the payload to the shape.
 
   // Add volume SMA + pretrade overlay
   const chartDataWithVolume = useMemo(() => {
@@ -297,7 +430,20 @@ const PriceChart = React.memo(function PriceChart({
       const date = new Date(d.timestamp);
       const hh = String(date.getHours()).padStart(2, '0');
       const mm = String(date.getMinutes()).padStart(2, '0');
-      const sigs = signalByTime.get(`${hh}:${mm}`) || [];
+      const sigs = [...(signalByTime.get(`${hh}:${mm}`) || [])];
+      
+      // Merge frontend signal if it exists and matches thresholds
+      if (d.buySignal) {
+        sigs.push({
+          time: `${hh}:${mm}`,
+          execPrice: d.buySignal.price,
+          executedQty: 0, // Frontend detected, not executed
+          cumTarget: 0,
+          xStar: 0,
+          binIdx: -1, // Use -1 to distinguish frontend signals
+        });
+      }
+
       return {
         ...d,
         // average execPrice for the dot position if multiple exist
@@ -314,17 +460,43 @@ const PriceChart = React.memo(function PriceChart({
 
   const priceDomain = useMemo(() => {
     if (!data.length) return ['auto', 'auto'] as any;
-    const lows = data.map((d) => Number(d.candle.low));
-    const highs = data.map((d) => Number(d.candle.high));
-    const min = Math.min(...lows);
-    const max = Math.max(...highs);
-    if (!Number.isFinite(min) || !Number.isFinite(max)) return ['auto', 'auto'] as any;
-    if (min === max) {
-      const pad = Math.max(0.01, Math.abs(min) * 0.001);
+    
+    // 1. Get base price range from valid candles only
+    // We ignore candles that are extreme outliers (more than 50% away from the last candle)
+    const lastPrice = data[data.length - 1].candle.close;
+    const candleHighs = data.map(d => d.candle.high).filter(v => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
+    const candleLows = data.map(d => d.candle.low).filter(v => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
+    
+    if (candleHighs.length === 0) return ['auto', 'auto'] as any;
+    
+    let min = Math.min(...candleLows);
+    let max = Math.max(...candleHighs);
+    
+    // 2. Expand domain for VWAP bands, but ONLY if they are close to the price
+    if (prefs.bandsVisible) {
+      data.forEach(d => {
+        const currentP = d.candle.close;
+        const threshold = currentP * 0.2; // 20% threshold for bands
+        
+        if (d.vwapData.upperBand > 0 && Math.abs(d.vwapData.upperBand - currentP) < threshold) {
+          max = Math.max(max, d.vwapData.upperBand);
+        }
+        if (d.vwapData.lowerBand > 0 && Math.abs(d.vwapData.lowerBand - currentP) < threshold) {
+          min = Math.min(min, d.vwapData.lowerBand);
+        }
+      });
+    }
+
+    const range = max - min;
+    const padding = range * 0.02; // 2% padding
+    
+    if (range === 0) {
+      const pad = Math.max(0.1, Math.abs(min) * 0.01);
       return [min - pad, max + pad] as [number, number];
     }
-    return [min, max] as [number, number];
-  }, [data]);
+    
+    return [min - padding, max + padding] as [number, number];
+  }, [data, prefs.bandsVisible]);
 
   const isMultiDay = useMemo(() => {
     if (chartData.length < 2) return false;
@@ -418,7 +590,7 @@ const PriceChart = React.memo(function PriceChart({
                 if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
                 return String(v);
               }}
-              domain={[0, Math.max(1, Math.ceil(maxVolume * 1.1))]}
+              domain={[0, Math.max(1, Math.ceil(maxVolume * 4))]} // Multiplied by 4 to keep bars at bottom 25%
               stroke="var(--foreground)"
               fontSize={11}
               width={40}
@@ -611,7 +783,7 @@ const PriceChart = React.memo(function PriceChart({
 
 
 
-          {/* Price line / area */}
+          {/* Price chart based on type */}
           {prefs.chartType === 'LINE' ? (
             <Line
               type="monotone"
@@ -620,6 +792,21 @@ const PriceChart = React.memo(function PriceChart({
               strokeWidth={2}
               dot={false}
               name="Price"
+              isAnimationActive={false}
+            />
+          ) : prefs.chartType === 'OHLC' ? (
+            <Bar
+              dataKey="ohlcRange"
+              name="Price (OHLC)"
+              isAnimationActive={false}
+              shape={<OHLCWebShape />}
+            />
+          ) : prefs.chartType === 'CANDLESTICK' ? (
+            <Bar
+              dataKey="ohlcRange"
+              name="Price (Candle)"
+              isAnimationActive={false}
+              shape={<CandlestickShape />}
             />
           ) : (
             <Area
@@ -629,6 +816,7 @@ const PriceChart = React.memo(function PriceChart({
               fill="url(#priceGradient)"
               fillOpacity={1}
               name="Price"
+              isAnimationActive={false}
             />
           )}
 
@@ -688,25 +876,30 @@ const PriceChart = React.memo(function PriceChart({
           {/* Volume curves */}
           {volumeCurveVisible && (
             <>
-              <Line
-                type="monotone"
+              <Bar
                 dataKey="volume"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={false}
                 name="Volume"
                 yAxisId="volume"
                 isAnimationActive={false}
-              />
+              >
+                {chartDataWithSignals.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.close >= entry.open ? '#22c55e' : '#ef4444'} 
+                    fillOpacity={0.4}
+                  />
+                ))}
+              </Bar>
               <Line
                 type="monotone"
                 dataKey="volumeSma"
                 stroke="#8b5cf6"
-                strokeWidth={2.2}
+                strokeWidth={1.5}
                 dot={false}
                 name="Volume SMA(20)"
                 yAxisId="volume"
                 isAnimationActive={false}
+                opacity={0.6}
               />
             </>
           )}

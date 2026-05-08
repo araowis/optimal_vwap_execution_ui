@@ -11,6 +11,8 @@ import {
 import { calculateVolumeBins } from '@/lib/volume-allocation';
 import { Candle, ChartDatapoint, CustomizationPrefs, BackendBuySignal } from '@/lib/types';
 import { vwapServerService, PretradeResponse } from '@/lib/vwap-server-service';
+import { WSCalibrationMessage, WSRegimeMessage } from '@/lib/vwap-server-types';
+import { Activity, AlertCircle, RefreshCw } from 'lucide-react';
 import PriceChart from './charts/PriceChart';
 import VolumeChart from './charts/VolumeChart';
 import PretradeCharts from './charts/PretradeCharts';
@@ -26,9 +28,13 @@ interface ChartPanelProps {
   timeframeMode?: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
   onTimeframeChange?: (mode: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR') => void;
   mode?: 'backtest' | 'realtime';
-  realtimePriceUpdate?: { ltp: number; timestamp: number; volume?: number };
+  realtimePriceUpdate?: { ltp: number; timestamp: number; volume?: number; vwap?: number };
   onPretradeDataChange?: (data: PretradeResponse | null) => void;
   backendBuySignals?: BackendBuySignal[];
+  liveCalibration?: WSCalibrationMessage | null;
+  liveRegime?: WSRegimeMessage | null;
+  vwapWsConnected?: boolean;
+  vwapWsConnecting?: boolean;
 }
 
 const ChartPanel = memo(function ChartPanel({
@@ -45,6 +51,10 @@ const ChartPanel = memo(function ChartPanel({
   mode = 'backtest',
   realtimePriceUpdate,
   backendBuySignals = [],
+  liveCalibration = null,
+  liveRegime = null,
+  vwapWsConnected = false,
+  vwapWsConnecting = false,
 }: ChartPanelProps) {
   const [displayData, setDisplayData] = useState<ChartDatapoint[]>([]);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
@@ -202,8 +212,14 @@ const ChartPanel = memo(function ChartPanel({
 
 
 
-    setDisplayData(newChartData);
-    onChartDataChange(newChartData);
+    const signaledData = detectBuySignals(
+      newChartData, 
+      customizationPrefs.buyThreshold, 
+      customizationPrefs.minVolumeThreshold
+    );
+
+    setDisplayData(signaledData);
+    onChartDataChange(signaledData);
   }, [filteredCandles, customizationPrefs, onChartDataChange]);
 
   useEffect(() => {
@@ -211,14 +227,35 @@ const ChartPanel = memo(function ChartPanel({
       return;
     }
     setDisplayData((prev) => {
+      const currentTickTime = new Date(realtimePriceUpdate.timestamp);
+      
+      const getPeriodStart = (date: Date, period: string) => {
+        const d = new Date(date);
+        d.setSeconds(0, 0);
+        d.setMilliseconds(0);
+        if (period === '5MIN') {
+          d.setMinutes(Math.floor(d.getMinutes() / 5) * 5);
+        } else if (period === '15MIN') {
+          d.setMinutes(Math.floor(d.getMinutes() / 15) * 15);
+        } else if (period === 'HOURLY') {
+          d.setMinutes(0);
+        } else if (period === 'DAILY') {
+          d.setHours(0, 0, 0, 0);
+        }
+        return d.getTime();
+      };
+
+      const periodStart = getPeriodStart(currentTickTime, customizationPrefs.chartPeriod);
+
       if (prev.length === 0) {
         const initialCandle: Candle = {
-          timestamp: new Date(realtimePriceUpdate.timestamp),
+          timestamp: new Date(periodStart),
           open: realtimePriceUpdate.ltp,
           high: realtimePriceUpdate.ltp,
           low: realtimePriceUpdate.ltp,
           close: realtimePriceUpdate.ltp,
           volume: realtimePriceUpdate.volume || 0,
+          vwap: realtimePriceUpdate.vwap,
           oi: 0,
         };
 
@@ -226,16 +263,16 @@ const ChartPanel = memo(function ChartPanel({
           candle: initialCandle,
           vwapData: {
             timestamp: initialCandle.timestamp,
-            vwap: initialCandle.close,
-            upperBand: initialCandle.close,
-            lowerBand: initialCandle.close,
+            vwap: realtimePriceUpdate.vwap ?? initialCandle.close,
+            upperBand: (realtimePriceUpdate.vwap ?? initialCandle.close) * (1 + customizationPrefs.bandWidth / 100),
+            lowerBand: (realtimePriceUpdate.vwap ?? initialCandle.close) * (1 - customizationPrefs.bandWidth / 100),
             stdDev: 0,
-            cumulativeTP: initialCandle.close * initialCandle.volume,
-            cumulativeVolume: initialCandle.volume,
+            cumulativeTP: (realtimePriceUpdate.vwap ?? initialCandle.close) * (initialCandle.volume || 1),
+            cumulativeVolume: initialCandle.volume || 1,
           },
           volumeBins: calculateVolumeBins(initialCandle, customizationPrefs.numVolumeBins),
-          deviationFromVWAP: 0,
-          deviationPercentage: 0,
+          deviationFromVWAP: realtimePriceUpdate.vwap ? (realtimePriceUpdate.ltp - realtimePriceUpdate.vwap) : 0,
+          deviationPercentage: realtimePriceUpdate.vwap ? ((realtimePriceUpdate.ltp - realtimePriceUpdate.vwap) / realtimePriceUpdate.vwap * 100) : 0,
         };
 
         return [initialDatapoint];
@@ -243,47 +280,73 @@ const ChartPanel = memo(function ChartPanel({
 
       const lastCandleIndex = prev.length - 1;
       const lastDatapoint = prev[lastCandleIndex];
-      if (!lastDatapoint) return prev;
+      const lastPeriodStart = getPeriodStart(lastDatapoint.candle.timestamp, customizationPrefs.chartPeriod);
 
-      const currentTickTime = new Date(realtimePriceUpdate.timestamp);
+      const isNewBar = periodStart > lastPeriodStart;
 
-      const updatedCandle: Candle = {
-        ...lastDatapoint.candle,
-        close: realtimePriceUpdate.ltp,
-        high: Math.max(lastDatapoint.candle.high, realtimePriceUpdate.ltp),
-        low: Math.min(lastDatapoint.candle.low, realtimePriceUpdate.ltp),
-        volume:
-          typeof realtimePriceUpdate.volume === 'number' && realtimePriceUpdate.volume > 0
-            ? realtimePriceUpdate.volume
-            : lastDatapoint.candle.volume,
-        timestamp: currentTickTime,
-      };
+      if (isNewBar) {
+        // Create a new candle
+        const newCandle: Candle = {
+          timestamp: new Date(periodStart),
+          open: realtimePriceUpdate.ltp,
+          high: realtimePriceUpdate.ltp,
+          low: realtimePriceUpdate.ltp,
+          close: realtimePriceUpdate.ltp,
+          volume: realtimePriceUpdate.volume || 0,
+          vwap: realtimePriceUpdate.vwap,
+          oi: 0,
+        };
 
-      const prevVwap = lastCandleIndex > 0 ? prev[lastCandleIndex - 1].vwapData : null;
-      const prevVolume = lastDatapoint.candle.volume || 0;
-      const newVolume = updatedCandle.volume || 0;
-      const deltaVolume = newVolume - prevVolume;
+        const prevVwap = lastDatapoint.vwapData;
+        const currentVwap = realtimePriceUpdate.vwap ?? prevVwap.vwap;
 
-      const cumVolume = (prevVwap?.cumulativeVolume || 0) + deltaVolume;
-      const currentVwap = cumVolume > 0 ? (prevVwap?.vwap || 0) : updatedCandle.close;
+        const newDatapoint: ChartDatapoint = {
+          candle: newCandle,
+          vwapData: {
+            timestamp: newCandle.timestamp,
+            vwap: currentVwap,
+            stdDev: prevVwap.stdDev,
+            cumulativeTP: (prevVwap.cumulativeTP || 0) + (newCandle.close * (newCandle.volume || 0)),
+            upperBand: currentVwap * (1 + customizationPrefs.bandWidth / 100),
+            lowerBand: currentVwap * (1 - customizationPrefs.bandWidth / 100),
+            cumulativeVolume: (prevVwap.cumulativeVolume || 0) + (newCandle.volume || 0),
+          },
+          volumeBins: calculateVolumeBins(newCandle, customizationPrefs.numVolumeBins),
+          deviationFromVWAP: calculateDeviation(newCandle.close, currentVwap).absolute,
+          deviationPercentage: calculateDeviation(newCandle.close, currentVwap).percentage,
+        };
 
-      const updatedDatapoint: ChartDatapoint = {
-        candle: updatedCandle,
-        vwapData: {
-          timestamp: updatedCandle.timestamp,
-          vwap: currentVwap,
-          stdDev: prevVwap?.stdDev || 0,
-          cumulativeTP: (prevVwap?.cumulativeTP || 0) + updatedCandle.close * deltaVolume,
-          upperBand: currentVwap * (1 + customizationPrefs.bandWidth / 100),
-          lowerBand: currentVwap * (1 - customizationPrefs.bandWidth / 100),
-          cumulativeVolume: cumVolume,
-        },
-        volumeBins: calculateVolumeBins(updatedCandle, customizationPrefs.numVolumeBins),
-        deviationFromVWAP: calculateDeviation(updatedCandle.close, currentVwap).absolute,
-        deviationPercentage: calculateDeviation(updatedCandle.close, currentVwap).percentage,
-      };
+        return [...prev, newDatapoint];
+      } else {
+        // Update existing candle
+        const updatedCandle: Candle = {
+          ...lastDatapoint.candle,
+          close: realtimePriceUpdate.ltp,
+          high: Math.max(lastDatapoint.candle.high, realtimePriceUpdate.ltp),
+          low: Math.min(lastDatapoint.candle.low, realtimePriceUpdate.ltp),
+          volume: realtimePriceUpdate.volume !== undefined ? realtimePriceUpdate.volume : lastDatapoint.candle.volume,
+          vwap: realtimePriceUpdate.vwap !== undefined ? realtimePriceUpdate.vwap : lastDatapoint.candle.vwap,
+        };
 
-      return [...prev.slice(0, -1), updatedDatapoint];
+        const prevVwap = lastCandleIndex > 0 ? prev[lastCandleIndex - 1].vwapData : null;
+        const currentVwap = realtimePriceUpdate.vwap ?? lastDatapoint.vwapData.vwap;
+
+        const updatedDatapoint: ChartDatapoint = {
+          candle: updatedCandle,
+          vwapData: {
+            ...lastDatapoint.vwapData,
+            timestamp: updatedCandle.timestamp,
+            vwap: currentVwap,
+            upperBand: currentVwap * (1 + customizationPrefs.bandWidth / 100),
+            lowerBand: currentVwap * (1 - customizationPrefs.bandWidth / 100),
+          },
+          volumeBins: calculateVolumeBins(updatedCandle, customizationPrefs.numVolumeBins),
+          deviationFromVWAP: calculateDeviation(updatedCandle.close, currentVwap).absolute,
+          deviationPercentage: calculateDeviation(updatedCandle.close, currentVwap).percentage,
+        };
+
+        return [...prev.slice(0, -1), updatedDatapoint];
+      }
     });
   }, [realtimePriceUpdate, mode, customizationPrefs]);
 
@@ -374,64 +437,101 @@ const ChartPanel = memo(function ChartPanel({
               <span className="text-xs text-muted-foreground">
                 {filteredCandles.length} candles ({sampledDisplayData.length} displayed) • {customizationPrefs.chartPeriod}
               </span>
-              {pretradeData ? (
+              {vwapWsConnected ? (
+                <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                  <Activity className="w-3 h-3" />
+                  Live Engine Connected
+                </span>
+              ) : vwapWsConnecting ? (
+                <span className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Connecting to Engine...
+                </span>
+              ) : (
+                <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                  <AlertCircle className="w-3 h-3" />
+                  Engine Disconnected
+                </span>
+              )}
+              {liveRegime && (
+                <span className={`text-xs px-1.5 py-0.5 rounded font-bold uppercase ${
+                  liveRegime.newRegime === 'UP' ? 'bg-green-500/20 text-green-500' : 
+                  liveRegime.newRegime === 'DOWN' ? 'bg-red-500/20 text-red-500' : 
+                  'bg-gray-500/20 text-gray-400'
+                }`}>
+                  Regime: {liveRegime.newRegime}
+                </span>
+              )}
+              {liveCalibration && (
+                <span className="text-xs text-muted-foreground">
+                  Bar {liveCalibration.barIdx}/375
+                </span>
+              )}
+              {pretradeData && !liveCalibration && (
                 <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                   <span className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full"></span>
                   Pretrade loaded
                 </span>
-              ) : instrumentKey ? (
+              )}
+              {!pretradeData && !liveCalibration && instrumentKey && (
                 <span className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
                   <span className="w-2 h-2 bg-yellow-600 dark:bg-yellow-400 rounded-full"></span>
-                  No pretrade data
+                  No strategy data
                 </span>
-              ) : null}
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            value={timeframeMode}
-            onChange={(e) => onTimeframeChange?.(e.target.value as any)}
-            className="text-xs bg-background border border-border rounded px-2 py-1"
-            title="Timeframe"
-          >
-            <option value="ALL">All</option>
-            <option value="DAY">Trading Day</option>
-            <option value="WEEK">Week</option>
-            <option value="MONTH">Month</option>
-            <option value="YEAR">Year</option>
-          </select>
+          <div className="bg-secondary rounded-md border border-border hover:border-primary/50 transition-colors">
+            <select
+              value={timeframeMode}
+              onChange={(e) => onTimeframeChange?.(e.target.value as any)}
+              className="text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none min-w-[100px] text-foreground font-medium"
+              title="Timeframe"
+            >
+              <option value="ALL" className="bg-background text-foreground">All Periods</option>
+              <option value="DAY" className="bg-background text-foreground">Trading Day</option>
+              <option value="WEEK" className="bg-background text-foreground">Week</option>
+              <option value="MONTH" className="bg-background text-foreground">Month</option>
+              <option value="YEAR" className="bg-background text-foreground">Year</option>
+            </select>
+          </div>
 
           {timeframeMode !== 'ALL' && (
-            <select
-              value={selectedKey}
-              onChange={(e) => setSelectedKey(e.target.value)}
-              className="text-xs bg-background border border-border rounded px-2 py-1 max-w-48"
-              title="Select period"
-            >
-              {availableKeys.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
+            <div className="bg-secondary rounded-md border border-border hover:border-primary/50 transition-colors">
+              <select
+                value={selectedKey}
+                onChange={(e) => setSelectedKey(e.target.value)}
+                className="text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none max-w-48 text-foreground font-medium"
+                title="Select period"
+              >
+                {availableKeys.map((k) => (
+                  <option key={k} value={k} className="bg-background text-foreground">
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {displayData.length > 200 && (
-            <select
-              value={visibleDataPoints}
-              onChange={(e) => setVisibleDataPoints(Number(e.target.value))}
-              className="text-xs bg-background border border-border rounded px-2 py-1"
-              title="Data Points"
-            >
-              <option value={50}>50 (Fast)</option>
-              <option value={100}>100</option>
-              <option value={200}>200 (Default)</option>
-              <option value={500}>500</option>
-              <option value={1000}>1000</option>
-              <option value={displayData.length}>All ({displayData.length})</option>
-            </select>
+            <div className="bg-secondary rounded-md border border-border hover:border-primary/50 transition-colors">
+              <select
+                value={visibleDataPoints}
+                onChange={(e) => setVisibleDataPoints(Number(e.target.value))}
+                className="text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none text-foreground font-medium"
+                title="Data Points"
+              >
+                <option value={50} className="bg-background text-foreground">50 (Fast)</option>
+                <option value={100} className="bg-background text-foreground">100</option>
+                <option value={200} className="bg-background text-foreground">200 (Default)</option>
+                <option value={500} className="bg-background text-foreground">500</option>
+                <option value={1000} className="bg-background text-foreground">1000</option>
+                <option value={displayData.length} className="bg-background text-foreground">All ({displayData.length})</option>
+              </select>
+            </div>
           )}
 
           {pretradeData && (
@@ -475,7 +575,7 @@ const ChartPanel = memo(function ChartPanel({
           hoveredCandle={hoveredCandle}
           onCandleHover={setHoveredCandle}
           volumeCurveVisible={volumeCurveVisible}
-          volumeCurveData={pretradeData?.eXt || []}
+          volumeCurveData={liveCalibration?.eXt || pretradeData?.eXt || []}
           timeLabels={pretradeData?.timeLabels || []}
           onClickedCandle={(idx) => {
             if (isAddingLine && idx !== null && sampledDisplayData[idx]) {
@@ -484,7 +584,7 @@ const ChartPanel = memo(function ChartPanel({
             }
             setClickedCandle(idx);
           }}
-          pretradeVolumeCurve={pretradeData?.eXt || []}
+          pretradeVolumeCurve={liveCalibration?.xStar || pretradeData?.eXt || []} // Using xStar as main guide if live
           showPretradeInMain={showPretradeInMain}
           backendBuySignals={backendBuySignals}
           horizontalLines={horizontalLines}
@@ -492,14 +592,14 @@ const ChartPanel = memo(function ChartPanel({
       </div>
 
       {/* Pretrade Charts */}
-      {!showPretradeInMain && <PretradeCharts pretradeData={pretradeData} />}
+      {!showPretradeInMain && <PretradeCharts pretradeData={pretradeData} liveCalibration={liveCalibration} />}
 
       {/* Hover Info (Responsive container) */}
       <div className="bg-secondary/30 backdrop-blur-sm rounded-xl p-3 border border-border/50 min-h-[5rem] flex items-center shadow-inner">
         {(hoveredCandle !== null && sampledDisplayData[hoveredCandle]) || (clickedCandle !== null && sampledDisplayData[clickedCandle]) ? (
           <DatapointInfo 
             datapoint={sampledDisplayData[hoveredCandle !== null ? hoveredCandle : clickedCandle!]} 
-            showVolume={clickedCandle !== null} 
+            showVolume={true} 
             backendSignals={backendBuySignals}
           />
         ) : (
@@ -567,22 +667,20 @@ function DatapointInfo({
           </p>
         </div>
 
-        {showVolume && (
-          <div className="flex gap-6">
-            <div>
-              <p className="text-[10px] text-muted-foreground font-medium">Volume</p>
-              <p className="text-xs font-bold text-foreground">
-                {candle.volume >= 1000000 ? `${(candle.volume / 1000000).toFixed(2)}M` : `${(candle.volume / 1000).toFixed(1)}K`}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground font-medium">Deviation</p>
-              <p className={`text-xs font-bold ${deviationPercentage < 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {deviationPercentage.toFixed(3)}%
-              </p>
-            </div>
+        <div className="flex gap-6">
+          <div>
+            <p className="text-[10px] text-muted-foreground font-medium">Volume</p>
+            <p className="text-xs font-bold text-foreground">
+              {candle.volume >= 1000000 ? `${(candle.volume / 1000000).toFixed(2)}M` : `${(candle.volume / 1000).toFixed(1)}K`}
+            </p>
           </div>
-        )}
+          <div>
+            <p className="text-[10px] text-muted-foreground font-medium">Deviation</p>
+            <p className={`text-xs font-bold ${deviationPercentage < 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {deviationPercentage.toFixed(3)}%
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Buy Signal Indicator */}

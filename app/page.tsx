@@ -27,6 +27,8 @@ export default function Home() {
     signalMarkerType: 'PIN',
     showSignalLines: false,
     signalStrengthThreshold: 30,
+    buyThreshold: 0.5,
+    minVolumeThreshold: 0,
     theme: 'LIGHT',
     hoverDetailsVisible: true,
   });

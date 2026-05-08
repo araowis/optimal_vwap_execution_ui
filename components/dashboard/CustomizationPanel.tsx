@@ -367,6 +367,32 @@ export default function CustomizationPanel({
             </div>
 
             <div>
+              <label className="text-xs text-muted-foreground">Buy Threshold (Dev %)</label>
+              <input
+                type="number"
+                step="0.05"
+                value={preferences.buyThreshold}
+                onChange={(e) =>
+                  handleChange('buyThreshold', parseFloat(e.target.value) || 0)
+                }
+                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground">Min Volume</label>
+              <input
+                type="number"
+                step="1000"
+                value={preferences.minVolumeThreshold}
+                onChange={(e) =>
+                  handleChange('minVolumeThreshold', parseInt(e.target.value) || 0)
+                }
+                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+              />
+            </div>
+
+            <div>
               <label className="text-xs text-muted-foreground">Strength Threshold</label>
               <input
                 type="range"

@@ -1,4 +1,3 @@
-// Core OHLCV Candle Data
 export interface Candle {
   timestamp: Date;
   open: number;
@@ -6,6 +5,7 @@ export interface Candle {
   low: number;
   close: number;
   volume: number;
+  vwap?: number;
   oi?: number; // Open Interest
 }
 
@@ -176,6 +176,8 @@ export interface CustomizationPrefs {
   signalMarkerType: 'PIN' | 'DOT' | 'ARROW';
   showSignalLines: boolean;
   signalStrengthThreshold: number;
+  buyThreshold: number; // Percentage below VWAP
+  minVolumeThreshold: number;
   theme: 'LIGHT' | 'DARK';
   hoverDetailsVisible: boolean;
 }

@@ -15,12 +15,14 @@ import { PretradeResponse } from '@/lib/vwap-server-service';
 
 interface PretradeChartsProps {
   pretradeData: PretradeResponse | null;
+  liveCalibration?: any | null;
 }
 
 type PretradeGraphType = 'eXt' | 'varXt' | 'sigma2t' | 'muT' | 'executionScore' | 'avgVolumePerBar';
 
-const graphLabels: Record<PretradeGraphType, string> = {
+const graphLabels: Record<string, string> = {
   eXt: 'Expected Volume (eXt)',
+  xStar: 'Optimal Schedule (xStar)',
   varXt: 'Variance (varXt)',
   sigma2t: 'Sigma² (sigma2t)',
   muT: 'Mean (muT)',
@@ -37,23 +39,34 @@ const graphColors: Record<PretradeGraphType, string> = {
   avgVolumePerBar: '#3b82f6',
 };
 
-export default function PretradeCharts({ pretradeData }: PretradeChartsProps) {
-  const [selectedGraph, setSelectedGraph] = useState<PretradeGraphType>('eXt');
+export default function PretradeCharts({ pretradeData, liveCalibration }: PretradeChartsProps) {
+  const [selectedGraph, setSelectedGraph] = useState<string>('eXt');
 
   const chartData = useMemo(() => {
-    if (!pretradeData) return [];
-    const { timeLabels, eXt, varXt, sigma2t, muT, executionScore, avgVolumePerBar } = pretradeData;
+    if (!pretradeData && !liveCalibration) return [];
+    
+    // Use live data if available, fallback to pretrade
+    const timeLabels = pretradeData?.timeLabels || Array.from({ length: 375 }, (_, i) => String(i));
+    const eXt = liveCalibration?.eXt || pretradeData?.eXt || [];
+    const xStar = liveCalibration?.xStar || [];
+    const varXt = pretradeData?.varXt || [];
+    const sigma2t = pretradeData?.sigma2t || [];
+    const muT = pretradeData?.muT || [];
+    const executionScore = pretradeData?.executionScore || [];
+    const avgVolumePerBar = pretradeData?.avgVolumePerBar || [];
+
     return timeLabels.map((label, index) => ({
       index,
       time: label,
       eXt: eXt[index] || 0,
+      xStar: xStar[index] || 0,
       varXt: varXt[index] || 0,
       sigma2t: sigma2t[index] || 0,
       muT: muT[index] || 0,
       executionScore: executionScore[index] || 0,
       avgVolumePerBar: avgVolumePerBar[index] || 0,
     }));
-  }, [pretradeData]);
+  }, [pretradeData, liveCalibration]);
 
   const maxValue = useMemo(() => {
     if (!pretradeData) return 0;
@@ -74,17 +87,22 @@ export default function PretradeCharts({ pretradeData }: PretradeChartsProps) {
       {/* Graph Toggle */}
       <div className="flex items-center gap-2 px-2">
         <span className="text-xs text-muted-foreground">Show:</span>
-        <select
-          value={selectedGraph}
-          onChange={(e) => setSelectedGraph(e.target.value as PretradeGraphType)}
-          className="text-xs bg-background border border-border rounded px-2 py-1 flex-1"
-        >
-          {Object.entries(graphLabels).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
+        <div className="relative flex-1 bg-secondary rounded-md border border-border hover:border-primary/50 transition-colors">
+          <select
+            value={selectedGraph}
+            onChange={(e) => setSelectedGraph(e.target.value)}
+            className="w-full text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none text-foreground font-medium"
+          >
+            {Object.entries(graphLabels).map(([key, label]) => {
+              if (key === 'xStar' && !liveCalibration) return null;
+              return (
+                <option key={key} value={key} className="bg-background text-foreground">
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
       </div>
 
       {/* Chart */}

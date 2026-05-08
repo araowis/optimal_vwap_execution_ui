@@ -25,8 +25,14 @@ import { BacktestService } from '@/lib/backtest-service';
 import { backendService } from '@/lib/backend-service';
 import { vwapServerService, PretradeResponse } from '@/lib/vwap-server-service';
 import { useUpstoxWebSocket } from '@/lib/use-upstox-websocket';
+import { useVwapWebSocket } from '@/lib/use-vwap-websocket';
+import {
+  WSSignalMessage,
+  WSCalibrationMessage,
+  WSRegimeMessage,
+} from '@/lib/vwap-server-types';
 import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Zap, Activity } from 'lucide-react';
 
 interface DashboardLayoutProps {
   customizationPrefs: CustomizationPrefs;
@@ -97,6 +103,13 @@ export default function DashboardLayout({
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [customizationCollapsed, setCustomizationCollapsed] = useState(mode === 'realtime');
   const [isBackendDataLive, setIsBackendDataLive] = useState(false);
+  
+  // VWAP Live Strategy State
+  const [liveBuySignals, setLiveBuySignals] = useState<BackendBuySignal[]>([]);
+  const [liveCalibration, setLiveCalibration] = useState<WSCalibrationMessage | null>(null);
+  const [calibrationMap, setCalibrationMap] = useState<Record<string, WSCalibrationMessage>>({});
+  const [signalsMap, setSignalsMap] = useState<Record<string, BackendBuySignal[]>>({});
+  const [liveRegime, setLiveRegime] = useState<WSRegimeMessage | null>(null);
 
   const handlePriceUpdate = useCallback((data: any) => {
     // console.log('Real-time price update:', data);
@@ -104,6 +117,7 @@ export default function DashboardLayout({
       ltp: data.ltp,
       timestamp: data.timestamp,
       volume: data.volume,
+      vwap: data.vwap,
     });
   }, []);
 
@@ -114,6 +128,103 @@ export default function DashboardLayout({
     enabled: mode === 'realtime' && !!selectedWatchlistStock && !!upstoxAccessToken && !isBackendDataLive,
     onPriceUpdate: handlePriceUpdate,
   });
+
+  // WebSocket for VWAP Server signals & calibration (Primary source)
+  const { connected: vwapWsConnected, connecting: vwapWsConnecting } = useVwapWebSocket({
+    autoConnect: true,
+    handlers: {
+      onSignal: (msg) => {
+        // console.log('Live Buy Signal received:', msg);
+        const newSignal: BackendBuySignal = {
+          time: msg.marketTime.substring(0, 5), // Format HH:mm
+          execPrice: msg.ltp,
+          executedQty: msg.qty,
+          cumTarget: msg.cumTarget,
+          xStar: msg.xStar,
+          binIdx: msg.binIdx,
+        };
+        
+        setSignalsMap(prev => {
+          const updatedSignals = [...(prev[msg.instrument] || []), newSignal];
+          const newMap = { ...prev, [msg.instrument]: updatedSignals };
+          
+          // Persist to localStorage
+          try {
+            const today = new Date().toISOString().split('T')[0];
+            localStorage.setItem(`vwap_signals_${today}`, JSON.stringify(newMap));
+          } catch (e) {
+            console.error('Failed to persist signals to localStorage', e);
+          }
+          
+          return newMap;
+        });
+
+        if (selectedWatchlistStock?.instrument_key === msg.instrument) {
+          setLiveBuySignals(prev => [...prev, newSignal]);
+        }
+      },
+      onCalibration: (msg) => {
+        // console.log('Calibration update received:', msg);
+        setCalibrationMap(prev => ({
+          ...prev,
+          [msg.instrument]: msg
+        }));
+        
+        if (selectedWatchlistStock?.instrument_key === msg.instrument && msg.currentVWAP > 0) {
+          setLiveCalibration(msg);
+        }
+      },
+      onRegime: (msg) => {
+        // console.log('Regime change received:', msg);
+        if (selectedWatchlistStock?.instrument_key === msg.instrument) {
+          setLiveRegime(msg);
+        }
+      },
+    }
+  });
+
+  // Sync liveCalibration & liveBuySignals when selected stock changes or maps update
+  useEffect(() => {
+    const key = selectedWatchlistStock?.instrument_key || importContext?.instrumentKey;
+    if (key) {
+      if (calibrationMap[key]) setLiveCalibration(calibrationMap[key]);
+      else setLiveCalibration(null);
+      
+      if (signalsMap[key]) setLiveBuySignals(signalsMap[key]);
+      else setLiveBuySignals([]);
+    } else {
+      setLiveCalibration(null);
+      setLiveBuySignals([]);
+    }
+  }, [selectedWatchlistStock, importContext, calibrationMap, signalsMap]);
+
+  // Load persisted signals on mount and cleanup old data
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const key = `vwap_signals_${today}`;
+    
+    // Load today's signals
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        setSignalsMap(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to load signals from localStorage', e);
+    }
+    
+    // Cleanup old data (anything not from today)
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('vwap_signals_') && k !== key) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  }, []);
 
   // REST polling fallback for realtime price updates (keeps chart updating even if WS doesn't stream)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -135,6 +246,7 @@ export default function DashboardLayout({
               ltp: res.current.close,
               timestamp: res.current.timestamp,
               volume: res.current.volume,
+              vwap: res.current.vwap,
             });
           }
         } catch (e) {
@@ -220,6 +332,9 @@ export default function DashboardLayout({
     setBackTestMessage('');
     setImportContext(null);
     setSelectedWatchlistStock(null);
+    setLiveBuySignals([]);
+    setLiveCalibration(null);
+    setLiveRegime(null);
   }, [mode]);
 
   const handleDataUpload = (data: Candle[], logo?: string, name?: string) => {
@@ -239,6 +354,9 @@ export default function DashboardLayout({
     setCandles([]);
     setChartData([]);
     setRealtimePriceUpdate(undefined);
+    setLiveBuySignals([]);
+    setLiveCalibration(null);
+    setLiveRegime(null);
 
     if (!upstoxAccessToken) {
       setInstrumentName(stock.name);
@@ -264,7 +382,8 @@ export default function DashboardLayout({
               high: c.high,
               low: c.low,
               close: c.close,
-              volume: c.volume
+              volume: c.volume,
+              vwap: c.vwap
             }));
             usedBackend = true;
             setIsBackendDataLive(true);
@@ -277,6 +396,7 @@ export default function DashboardLayout({
                 ltp: backendRes.current.close,
                 timestamp: backendRes.current.timestamp,
                 volume: backendRes.current.volume,
+                vwap: backendRes.current.vwap,
               });
             }
           } else {
@@ -289,6 +409,7 @@ export default function DashboardLayout({
 
       if (!usedBackend) {
         console.log('[DEBUG] Falling back to Upstox historical candles');
+
         // Determine date range and interval based on mode
         let fromDate: string;
         let toDate: string;
@@ -679,7 +800,11 @@ export default function DashboardLayout({
             mode={mode as 'backtest' | 'realtime'}
             realtimePriceUpdate={realtimePriceUpdate}
             onPretradeDataChange={setPretradeData}
-            backendBuySignals={activeBuySignals}
+            backendBuySignals={[...activeBuySignals, ...liveBuySignals]}
+            liveCalibration={liveCalibration}
+            liveRegime={liveRegime}
+            vwapWsConnected={vwapWsConnected}
+            vwapWsConnecting={vwapWsConnecting}
           />
         </div>
 
@@ -710,6 +835,7 @@ export default function DashboardLayout({
                 wsConnected={wsConnected}
                 onClose={() => setSelectedWatchlistStock(null)}
                 pretradeData={pretradeData}
+                liveCalibration={liveCalibration}
               />
               {/* Customization Panel */}
               <div className={`border-t border-border flex flex-col ${!customizationCollapsed ? 'flex-1 min-h-0' : 'flex-none'}`}>

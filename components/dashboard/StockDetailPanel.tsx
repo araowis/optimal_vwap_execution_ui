@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { X, Activity } from 'lucide-react';
 import OrderBook from './OrderBook';
 import { PretradeResponse } from '@/lib/vwap-server-service';
 
@@ -11,9 +11,18 @@ interface StockDetailPanelProps {
   onClose: () => void;
   wsConnected?: boolean;
   pretradeData?: PretradeResponse | null;
+  liveCalibration?: any | null;
 }
 
-export default function StockDetailPanel({ stock, accessToken, mode, onClose, wsConnected = false, pretradeData }: StockDetailPanelProps) {
+export default function StockDetailPanel({ 
+  stock, 
+  accessToken, 
+  mode, 
+  onClose, 
+  wsConnected = false, 
+  pretradeData,
+  liveCalibration
+}: StockDetailPanelProps) {
   if (!stock) return null;
 
   return (
@@ -126,11 +135,51 @@ export default function StockDetailPanel({ stock, accessToken, mode, onClose, ws
           </div>
         )}
 
-        {!pretradeData && stock && (
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground">Pretrade Statistics</h4>
-            <div className="text-xs text-muted-foreground text-center py-3">
-              No pretrade data available. Select a calibrated stock to see volume curve predictions.
+        {/* Live Calibration Stats */}
+        {liveCalibration && (
+          <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <h4 className="text-xs font-semibold text-blue-500 flex items-center gap-2">
+              <Activity className="w-3 h-3" />
+              <span>Live Engine Stats</span>
+              <span className="px-1.5 py-0.5 bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded text-[10px] font-medium">Bar #{liveCalibration.barIdx}</span>
+            </h4>
+            <div className="p-3 bg-blue-500/5 rounded-lg border border-blue-500/10 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Trend Score</span>
+                <span className={`font-bold ${liveCalibration.trendScore > 0 ? 'text-green-500' : liveCalibration.trendScore < 0 ? 'text-red-500' : 'text-foreground'}`}>
+                  {(liveCalibration.trendScore * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Trend Accel</span>
+                <span className="text-foreground font-medium">{liveCalibration.trendAcceleration.toFixed(4)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Active Lambda</span>
+                <span className="text-foreground font-medium">{liveCalibration.lambda.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Bar Quality</span>
+                <div className="flex items-center gap-2">
+                   <div className="w-16 h-1 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${liveCalibration.barQuality * 100}%` }} />
+                   </div>
+                   <span className="text-foreground font-medium">{Math.round(liveCalibration.barQuality * 100)}%</span>
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Intraday Alpha</span>
+                <span className="text-foreground font-medium">{(liveCalibration.intradayAlpha * 10000).toFixed(2)} bps</span>
+              </div>
+              <div className="mt-2 pt-2 border-t border-blue-500/10">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Execution Progress</span>
+                  <span className="text-foreground font-bold">{Math.round(liveCalibration.executedFrac * 100)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden mt-1.5">
+                   <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${liveCalibration.executedFrac * 100}%` }} />
+                </div>
+              </div>
             </div>
           </div>
         )}
