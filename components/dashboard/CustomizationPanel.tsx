@@ -111,117 +111,119 @@ export default function CustomizationPanel({
         )}
       </div>
 
-      {/* VWAP Settings */}
-      <div className="border border-border rounded-lg">
-        <button
-          onClick={() => toggleSection('vwap')}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
-        >
-          <span className="font-medium text-foreground text-sm">VWAP Bands</span>
-          <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${
-              expandedSections.vwap ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
-
-        {expandedSections.vwap && (
-          <div className="border-t border-border p-4 space-y-4 bg-background">
-            <div className="flex gap-2">
-              <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer flex-1">
-                <input
-                  type="checkbox"
-                  checked={preferences.vwapVisible}
-                  onChange={(e) =>
-                    handleChange('vwapVisible', e.target.checked)
-                  }
-                />
-                VWAP Line
-              </label>
-              <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer flex-1">
-                <input
-                  type="checkbox"
-                  checked={preferences.bandsVisible}
-                  onChange={(e) =>
-                    handleChange('bandsVisible', e.target.checked)
-                  }
-                />
-                Bands
-              </label>
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">Band Width (σ)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={preferences.bandWidth}
-                onChange={(e) =>
-                  handleChange('bandWidth', parseFloat(e.target.value) || 1)
-                }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Line Color
+      {/* VWAP Settings - Hidden as per requirement */}
+      {false && (
+        <div className="border border-border rounded-lg">
+          <button
+            onClick={() => toggleSection('vwap')}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
+          >
+            <span className="font-medium text-foreground text-sm">VWAP Bands</span>
+            <ChevronDown
+              className={`w-4 h-4 text-muted-foreground transition-transform ${
+                expandedSections.vwap ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+  
+          {expandedSections.vwap && (
+            <div className="border-t border-border p-4 space-y-4 bg-background">
+              <div className="flex gap-2">
+                <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    checked={preferences.vwapVisible}
+                    onChange={(e) =>
+                      handleChange('vwapVisible', e.target.checked)
+                    }
+                  />
+                  VWAP Line
                 </label>
+                <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    checked={preferences.bandsVisible}
+                    onChange={(e) =>
+                      handleChange('bandsVisible', e.target.checked)
+                    }
+                  />
+                  Bands
+                </label>
+              </div>
+  
+              <div>
+                <label className="text-xs text-muted-foreground">Band Width (σ)</label>
                 <input
-                  type="color"
-                  value={preferences.bandColor.line}
+                  type="number"
+                  step="0.1"
+                  value={preferences.bandWidth}
                   onChange={(e) =>
-                    handleBandColorChange('line', e.target.value)
+                    handleChange('bandWidth', parseFloat(e.target.value) || 1)
                   }
-                  className="w-full h-8 rounded cursor-pointer"
+                  className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
                 />
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Upper
-                </label>
-                <input
-                  type="color"
-                  value={preferences.bandColor.upper}
-                  onChange={(e) =>
-                    handleBandColorChange('upper', e.target.value)
-                  }
-                  className="w-full h-8 rounded cursor-pointer"
-                />
+  
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">
+                    Line Color
+                  </label>
+                  <input
+                    type="color"
+                    value={preferences.bandColor.line}
+                    onChange={(e) =>
+                      handleBandColorChange('line', e.target.value)
+                    }
+                    className="w-full h-8 rounded cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">
+                    Upper
+                  </label>
+                  <input
+                    type="color"
+                    value={preferences.bandColor.upper}
+                    onChange={(e) =>
+                      handleBandColorChange('upper', e.target.value)
+                    }
+                    className="w-full h-8 rounded cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">
+                    Lower
+                  </label>
+                  <input
+                    type="color"
+                    value={preferences.bandColor.lower}
+                    onChange={(e) =>
+                      handleBandColorChange('lower', e.target.value)
+                    }
+                    className="w-full h-8 rounded cursor-pointer"
+                  />
+                </div>
               </div>
+  
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Lower
-                </label>
+                <label className="text-xs text-muted-foreground">Fill Opacity</label>
                 <input
-                  type="color"
-                  value={preferences.bandColor.lower}
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={preferences.bandColor.fillOpacity}
                   onChange={(e) =>
-                    handleBandColorChange('lower', e.target.value)
+                    handleBandColorChange('fillOpacity', parseFloat(e.target.value))
                   }
-                  className="w-full h-8 rounded cursor-pointer"
+                  className="w-full mt-1"
                 />
               </div>
             </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">Fill Opacity</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={preferences.bandColor.fillOpacity}
-                onChange={(e) =>
-                  handleBandColorChange('fillOpacity', parseFloat(e.target.value))
-                }
-                className="w-full mt-1"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Volume Settings */}
       <div className="border border-border rounded-lg">

@@ -20,6 +20,7 @@ import {
   BacktestApiResponse,
   DailyBacktestResult,
   BackendBuySignal,
+  Client,
 } from '@/lib/types';
 import { BacktestService } from '@/lib/backtest-service';
 import { backendService } from '@/lib/backend-service';
@@ -62,6 +63,10 @@ export default function DashboardLayout({
   const [realtimePriceUpdate, setRealtimePriceUpdate] = useState<{ ltp: number; timestamp: number; volume?: number } | undefined>(undefined);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
 
+  // Client Management State
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
   // Import context: instrument + date range from DataUploadPanel
   const [importContext, setImportContext] = useState<{
     instrumentKey: string;
@@ -90,7 +95,7 @@ export default function DashboardLayout({
       spreadBps: 5,
     },
   });
-  
+
   // Sidebar state
   const [leftSidebarWidth, setLeftSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(384);
@@ -110,6 +115,145 @@ export default function DashboardLayout({
   const [calibrationMap, setCalibrationMap] = useState<Record<string, WSCalibrationMessage>>({});
   const [signalsMap, setSignalsMap] = useState<Record<string, BackendBuySignal[]>>({});
   const [liveRegime, setLiveRegime] = useState<WSRegimeMessage | null>(null);
+
+  // Initialize clients on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('vwap_dashboard_clients');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Migration: Ensure logos and sectors are set for existing clients
+          const migrated = parsed.map(c => {
+            const updated = { ...c };
+            if (!updated.type) {
+              updated.type = 'ORGANIZATION'; // Default old clients to Organization
+            }
+            // Force update MSCI default or any missing logos
+            if (updated.type === 'ORGANIZATION' && (updated.id === 'msci-default' || !updated.logo || updated.logo.includes('clearbit'))) {
+              const domain = updated.domain || (updated.id === 'msci-default' ? 'msci.com' : '');
+              if (domain) {
+                updated.logo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+                updated.domain = domain;
+              }
+            }
+            if (!updated.sector) {
+              updated.sector = updated.type === 'PERSON' ? 'Wealth Management' : 'Financial Services';
+            }
+            return updated;
+          });
+          setClients(migrated);
+          setSelectedClient(migrated[0]);
+          setStrategyParams(migrated[0].strategyParams);
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to parse saved clients', e);
+      }
+    }
+
+    // Default Client
+    const defaultClient: Client = {
+      id: 'msci-default',
+      name: 'MSCI',
+      type: 'ORGANIZATION',
+      domain: 'msci.com',
+      logo: 'https://www.google.com/s2/favicons?domain=msci.com&sz=128',
+      sector: 'Financial Services',
+      strategyParams: { ...strategyParams },
+      watchlist: [],
+    };
+    setClients([defaultClient]);
+    setSelectedClient(defaultClient);
+  }, []);
+
+  // Persist clients when they change
+  useEffect(() => {
+    if (clients.length > 0) {
+      localStorage.setItem('vwap_dashboard_clients', JSON.stringify(clients));
+    }
+  }, [clients]);
+
+  // Sync selectedClient with strategyParams when they change locally
+  const handleStrategyParamsChange = (newParams: StrategyParams) => {
+    setStrategyParams(newParams);
+    if (selectedClient) {
+      const updatedClient = { ...selectedClient, strategyParams: newParams };
+      setSelectedClient(updatedClient);
+      setClients(prev => prev.map(c => 
+        c.id === selectedClient.id ? updatedClient : c
+      ));
+    }
+  };
+
+  // Handle Watchlist Change (Isolation)
+  const handleWatchlistChange = (newWatchlist: any[]) => {
+    if (selectedClient) {
+      const updatedClient = { ...selectedClient, watchlist: newWatchlist };
+      setSelectedClient(updatedClient);
+      setClients(prev => prev.map(c => 
+        c.id === selectedClient.id ? updatedClient : c
+      ));
+    }
+  };
+
+  // Handle Client Selection
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
+    setStrategyParams(client.strategyParams);
+    // When switching client, we might want to clear the current active stock
+    setSelectedWatchlistStock(null);
+    setCandles([]);
+    setChartData([]);
+    setImportContext(null);
+    
+    // Set branding to client logo/name by default
+    setCompanyLogo(client.logo || '');
+    setInstrumentName(client.name);
+  };
+
+  const handleAddClient = (client: Client) => {
+    setClients(prev => {
+      const exists = prev.find(c => c.id === client.id);
+      if (exists) {
+        return prev.map(c => c.id === client.id ? client : c);
+      }
+      return [...prev, client];
+    });
+    
+    // If we're updating the currently selected client, sync the state
+    if (selectedClient?.id === client.id) {
+      setSelectedClient(client);
+      setStrategyParams(client.strategyParams);
+      setCompanyLogo(client.logo || '');
+      setInstrumentName(client.name);
+    } else {
+      handleSelectClient(client);
+    }
+  };
+
+  const handleDeleteClient = (clientId: string) => {
+    setClients(prev => {
+      const newClients = prev.filter(c => c.id !== clientId);
+      // If we deleted the currently selected client, switch to the first available one
+      if (selectedClient?.id === clientId) {
+        if (newClients.length > 0) {
+          handleSelectClient(newClients[0]);
+        } else {
+          setSelectedClient(null);
+        }
+      }
+      return newClients;
+    });
+  };
+
+  // Ensure client branding is restored when no stock is selected
+  useEffect(() => {
+    if (selectedClient && !selectedWatchlistStock && !importContext) {
+      setCompanyLogo(selectedClient.logo || '');
+      setInstrumentName(selectedClient.name);
+    }
+  }, [selectedClient, selectedWatchlistStock, importContext]);
 
   const handlePriceUpdate = useCallback((data: any) => {
     // console.log('Real-time price update:', data);
@@ -673,6 +817,11 @@ export default function DashboardLayout({
       <Header 
         chartTimeframeMode={chartTimeframeMode}
         onTimeframeChange={setChartTimeframeMode}
+        selectedClient={selectedClient}
+        clients={clients}
+        onSelectClient={handleSelectClient}
+        onAddClient={handleAddClient}
+        onDeleteClient={handleDeleteClient}
       />
 
       {/* Main Content */}
@@ -713,10 +862,12 @@ export default function DashboardLayout({
                         // Use selectedWatchlistStock logo if available, otherwise leave blank
                       }
                     }}
+                    watchlist={selectedClient?.watchlist || []}
+                    onWatchlistChange={handleWatchlistChange}
                   />
                   <ParametersPanel
                     params={strategyParams}
-                    onParamsChange={setStrategyParams}
+                    onParamsChange={handleStrategyParamsChange}
                     onRunBacktest={handleRunBacktest}
                     onRunRealtime={handleRunRealtime}
                     isRunning={isBacktesting || isCalibrating}

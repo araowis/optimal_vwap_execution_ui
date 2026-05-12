@@ -21,6 +21,8 @@ interface DataUploadPanelProps {
     startDate: string;
     endDate: string;
   }) => void;
+  watchlist?: any[];
+  onWatchlistChange?: (watchlist: any[]) => void;
 }
 
 interface Instrument {
@@ -58,6 +60,8 @@ export default function DataUploadPanel({
   onUpstoxTokenChange,
   wsConnected = false,
   onImportContextChange,
+  watchlist: propsWatchlist,
+  onWatchlistChange,
 }: DataUploadPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +86,13 @@ export default function DataUploadPanel({
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Watchlist state for realtime mode
-  const [watchlist, setWatchlist] = useState<any[]>([]);
+  const [localWatchlist, setLocalWatchlist] = useState<any[]>([]);
+  const watchlist = propsWatchlist || localWatchlist;
+  const setWatchlist = (newWatchlist: any[]) => {
+    if (onWatchlistChange) onWatchlistChange(newWatchlist);
+    else setLocalWatchlist(newWatchlist);
+  };
+
   const [watchlistPrices, setWatchlistPrices] = useState<Record<string, { ltp: number; change: number; changePercent: number }>>({});
   const [selectedWatchlistStock, setSelectedWatchlistStock] = useState<any>(null);
   const [watchlistSearchQuery, setWatchlistSearchQuery] = useState('');
@@ -509,9 +519,12 @@ export default function DataUploadPanel({
 
   return (
     <div className="p-3 border-b border-border">
-      <h2 className="text-base font-semibold text-foreground mb-3">Data Upload</h2>
+      {/* 
+        Hiding Data Upload as per requirement 
+        <h2 className="text-base font-semibold text-foreground mb-3">Data Upload</h2>
+      */}
 
-      {mode === 'backtest' && (
+      {mode === 'backtest' && false && (
         <>
           <div
             className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary hover:bg-secondary/50 transition-all"
@@ -560,12 +573,15 @@ export default function DataUploadPanel({
             </div>
           )}
 
-          <div className="mt-3 text-xs text-muted-foreground">
-            <p className="font-medium mb-1">CSV Format:</p>
-            <code className="block bg-background p-1.5 rounded text-xs">
-              timestamp,open,high,low,close,volume,oi
-            </code>
-          </div>
+          {/* 
+            Hiding CSV format description 
+            <div className="mt-3 text-xs text-muted-foreground">
+              <p className="font-medium mb-1">CSV Format:</p>
+              <code className="block bg-background p-1.5 rounded text-xs">
+                timestamp,open,high,low,close,volume,oi
+              </code>
+            </div>
+          */}
         </>
       )}
 

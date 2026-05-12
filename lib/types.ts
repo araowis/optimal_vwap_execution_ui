@@ -237,3 +237,16 @@ export interface BacktestApiResponse {
   avgSlippageBps: number;
   results: DailyBacktestResult[];
 }
+
+// ── Client / Tenant Types ──────────────────────────────────────────────────
+
+export interface Client {
+  id: string;
+  name: string;
+  type: 'ORGANIZATION' | 'PERSON';
+  logo?: string;
+  domain?: string;
+  sector?: string;
+  strategyParams: StrategyParams;
+  watchlist: any[]; // Isolated watchlist for each client
+}

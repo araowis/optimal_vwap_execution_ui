@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Play, Maximize2, X, Calendar } from 'lucide-react';
+import { Play, Calendar } from 'lucide-react';
 import { StrategyParams } from '@/lib/types';
 
 interface ParametersPanelProps {
@@ -36,7 +36,6 @@ export default function ParametersPanel({
 }: ParametersPanelProps) {
   const [localParams, setLocalParams] = useState<StrategyParams>(params);
   const [runMode, setRunMode] = useState<'backtest' | 'realtime'>('backtest');
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleModeChange = (newMode: 'backtest' | 'realtime') => {
     setRunMode(newMode);
@@ -83,13 +82,6 @@ export default function ParametersPanel({
     <div className="flex-1 overflow-y-auto p-4 flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-foreground">Strategy Parameters</h2>
-        <button
-          onClick={() => setIsExpanded(true)}
-          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-          title="Expand to full view"
-        >
-          <Maximize2 className="w-4 h-4" />
-        </button>
       </div>
 
       <div className="space-y-4 flex-1 overflow-y-auto">
@@ -261,24 +253,6 @@ export default function ParametersPanel({
         )}
       </div>
 
-      {isExpanded && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-background rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-background border-b border-border p-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">Strategy Parameters - Expanded View</h2>
-              <button
-                onClick={() => setIsExpanded(false)}
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-muted-foreground">Expanded view coming soon</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
