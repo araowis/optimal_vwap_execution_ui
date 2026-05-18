@@ -53,12 +53,13 @@ export interface RiskProfileResponse {
 export interface MarketOpenInstrument {
   instrumentKey: string;
   totalQty: number;
-  nBins: number;
-  lambda: number;
+  nBins?: number;
+  lambda?: number;
   timezone?: string;
 }
 
 export interface MarketOpenRequest {
+  clientId: string;
   instruments: MarketOpenInstrument[];
 }
 
@@ -240,3 +241,89 @@ export interface VWAPWebSocketHandlers {
   onError?: (error: Error) => void;
   onClose?: () => void;
 }
+
+export interface RuntimeTuningParams {
+  lambdaMultiplier?: number;
+  adjustmentClampLo?: number;
+  adjustmentClampHi?: number;
+  rawTrendWeightGap?: number;
+  rawTrendWeightConsistency?: number;
+  rawTrendWeightReturn?: number;
+  ewmaFastOldWeight?: number;
+  ewmaSlowOldWeight?: number;
+  upTrendScoreThreshold?: number;
+  upTrendConsecBars?: number;
+  downTrendScoreThreshold?: number;
+  downTrendConsecBars?: number;
+  maxTrendAccel?: number;
+  minTrendAccel?: number;
+  trendAccelScaleUp?: number;
+  trendAccelScaleDown?: number;
+  intradayAlphaEwmaOldWeight?: number;
+  barStructAlpha?: number;
+  scaleFactorHi?: number;
+  scaleFactorLo?: number;
+  executionScoreHistWeight?: number;
+  lambdaClampLo?: number;
+  lambdaClampHi?: number;
+  priceEdgeExponent?: number;
+  liquidityFactorBase?: number;
+  liquidityFactorScale?: number;
+  deficitPressureScale?: number;
+  deficitFracClamp?: number;
+  binSmoothingWindow?: number;
+  minSpacingDenominator?: number;
+  strongSignalThreshold?: number;
+  refinementPasses?: number;
+}
+
+export type RuntimeTuningMapResponse = Record<string, RuntimeTuningParams>;
+
+export type RuntimeTuningDiffResponse = Record<string, unknown>;
+
+export interface RuntimeTuningProfile {
+  id?: number;
+  profileName?: string;
+  description?: string;
+
+  lambdaMultiplier?: number;
+  adjustmentClampLo?: number;
+  adjustmentClampHi?: number;
+  rawTrendWeightGap?: number;
+  rawTrendWeightConsistency?: number;
+  rawTrendWeightReturn?: number;
+  ewmaFastOldWeight?: number;
+  ewmaSlowOldWeight?: number;
+  upTrendScoreThreshold?: number;
+  upTrendConsecBars?: number;
+  downTrendScoreThreshold?: number;
+  downTrendConsecBars?: number;
+  maxTrendAccel?: number;
+  minTrendAccel?: number;
+  trendAccelScaleUp?: number;
+  trendAccelScaleDown?: number;
+  intradayAlphaEwmaOldWeight?: number;
+  barStructAlpha?: number;
+  scaleFactorHi?: number;
+  scaleFactorLo?: number;
+  executionScoreHistWeight?: number;
+  lambdaClampLo?: number;
+  lambdaClampHi?: number;
+  priceEdgeExponent?: number;
+  liquidityFactorBase?: number;
+  liquidityFactorScale?: number;
+  deficitPressureScale?: number;
+  deficitFracClamp?: number;
+  binSmoothingWindow?: number;
+  minSpacingDenominator?: number;
+  strongSignalThreshold?: number;
+  refinementPasses?: number;
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type RuntimeTuningProfileRequest = Omit<
+  RuntimeTuningProfile,
+  'id' | 'createdAt' | 'updatedAt'
+>;

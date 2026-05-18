@@ -11,6 +11,7 @@ import CustomizationPanel from './CustomizationPanel';
 import StockDetailPanel from './StockDetailPanel';
 import MarketOpenForm from './MarketOpenForm';
 import LiveTradingPanel from './LiveTradingPanel';
+import RuntimeTuningPanel from './RuntimeTuningPanel';
 import {
   CustomizationPrefs,
   Candle,
@@ -32,6 +33,8 @@ import {
   WSCalibrationMessage,
   WSRegimeMessage,
   RiskProfileResponse,
+  RuntimeTuningProfile,
+  RuntimeTuningProfileRequest,
 } from '@/lib/vwap-server-types';
 import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Zap, Activity } from 'lucide-react';
@@ -119,6 +122,11 @@ export default function DashboardLayout({
   const [liveRegime, setLiveRegime] = useState<WSRegimeMessage | null>(null);
 
   const [riskProfiles, setRiskProfiles] = useState<RiskProfileResponse[]>([]);
+
+  // Runtime Tuning Profile State
+  const [tuningProfiles, setTuningProfiles] = useState<RuntimeTuningProfile[]>([]);
+  const [selectedTuningProfile, setSelectedTuningProfile] = useState<RuntimeTuningProfile | null>(null);
+  const [tuningPanelCollapsed, setTuningPanelCollapsed] = useState(false);
 
   const defaultStrategyParams = {
     totalQuantity: 1000,
@@ -244,10 +252,20 @@ export default function DashboardLayout({
     }
   }, []);
 
+  const fetchTuningProfiles = useCallback(async () => {
+    try {
+      const response = await vwapServerService.getRuntimeTuningProfiles();
+      setTuningProfiles(response || []);
+    } catch (e) {
+      console.error('Failed to fetch tuning profiles from server', e);
+    }
+  }, []);
+
   useEffect(() => {
     fetchClients();
     fetchRiskProfiles();
-  }, [fetchClients, fetchRiskProfiles]);
+    fetchTuningProfiles();
+  }, [fetchClients, fetchRiskProfiles, fetchTuningProfiles]);
 
   const updateClientOnServer = async (client: Client) => {
     try {
@@ -298,6 +316,44 @@ export default function DashboardLayout({
     } catch (error) {
       console.error('Failed to delete risk profile:', error);
       toast.error('Failed to delete risk profile. It may be in use.');
+    }
+  };
+
+  // ── Runtime Tuning Profile Handlers ────────────────────────────────────────
+
+  const handleSelectTuningProfile = (profile: RuntimeTuningProfile) => {
+    if (!profile.id) {
+      setSelectedTuningProfile(null);
+    } else {
+      setSelectedTuningProfile(profile);
+    }
+  };
+
+  const handleSaveTuningProfile = async (request: RuntimeTuningProfileRequest, id?: number) => {
+    try {
+      if (id !== undefined) {
+        await vwapServerService.updateRuntimeTuningProfile(id, request);
+        toast.success('Tuning profile updated');
+      } else {
+        await vwapServerService.createRuntimeTuningProfile(request);
+        toast.success('Tuning profile created');
+      }
+      await fetchTuningProfiles();
+    } catch (error) {
+      console.error('Failed to save tuning profile:', error);
+      toast.error('Failed to save tuning profile.');
+    }
+  };
+
+  const handleDeleteTuningProfile = async (id: number) => {
+    try {
+      await vwapServerService.deleteRuntimeTuningProfile(id);
+      if (selectedTuningProfile?.id === id) setSelectedTuningProfile(null);
+      await fetchTuningProfiles();
+      toast.success('Tuning profile deleted');
+    } catch (error) {
+      console.error('Failed to delete tuning profile:', error);
+      toast.error('Failed to delete tuning profile.');
     }
   };
 
@@ -931,6 +987,7 @@ export default function DashboardLayout({
 
     try {
       const response = await vwapServerService.marketOpen({
+        clientId: selectedClient?.id || 'TRADER_DESK',
         instruments: [
           {
             instrumentKey: selectedWatchlistStock.instrument_key,
@@ -974,6 +1031,11 @@ export default function DashboardLayout({
         onChangeRiskProfile={handleChangeClientRiskProfile}
         onSaveRiskProfile={handleSaveRiskProfile}
         onDeleteRiskProfile={handleDeleteRiskProfile}
+        tuningProfiles={tuningProfiles}
+        selectedTuningProfileId={selectedTuningProfile?.id}
+        onSelectTuningProfile={handleSelectTuningProfile}
+        onSaveTuningProfile={handleSaveTuningProfile}
+        onDeleteTuningProfile={handleDeleteTuningProfile}
       />
 
       {/* Main Content */}
@@ -1060,10 +1122,10 @@ export default function DashboardLayout({
                     key={r.date}
                     onClick={() => handleActiveDateChange(r.date)}
                     className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${r.date === activeDate
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : r.status === 'OK'
-                          ? 'bg-background border border-border text-foreground hover:bg-secondary'
-                          : 'bg-background border border-dashed border-border text-muted-foreground'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : r.status === 'OK'
+                        ? 'bg-background border border-border text-foreground hover:bg-secondary'
+                        : 'bg-background border border-dashed border-border text-muted-foreground'
                       }`}
                     title={r.status !== 'OK' ? r.errorMessage || r.status : undefined}
                   >
@@ -1139,6 +1201,28 @@ export default function DashboardLayout({
                 pretradeData={pretradeData}
                 liveCalibration={liveCalibration}
               />
+              {/* Runtime Tuning Panel — realtime / vwap-live only */}
+              {mode !== 'backtest' && (
+                <div className={`border-t border-border flex flex-col ${!tuningPanelCollapsed ? 'flex-1 min-h-0' : 'flex-none'}`}>
+                  <button
+                    onClick={() => setTuningPanelCollapsed(!tuningPanelCollapsed)}
+                    className="w-full px-4 py-2 flex items-center justify-between text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span>Runtime Tuning</span>
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary rounded-sm">Live</span>
+                    </span>
+                    {tuningPanelCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                  {!tuningPanelCollapsed && (
+                    <RuntimeTuningPanel
+                      clientId={selectedClient?.id}
+                      instrumentKey={selectedWatchlistStock?.instrument_key}
+                      selectedTuningProfile={selectedTuningProfile}
+                    />
+                  )}
+                </div>
+              )}
               {/* Customization Panel */}
               <div className={`border-t border-border flex flex-col ${!customizationCollapsed ? 'flex-1 min-h-0' : 'flex-none'}`}>
                 <button

@@ -4,8 +4,9 @@ import { BarChart3, Settings } from 'lucide-react';
 import StatusIndicator from './StatusIndicator';
 import ClientDropdown from './ClientDropdown';
 import RiskProfileDropdown from './RiskProfileDropdown';
+import RuntimeTuningProfileDropdown from './RuntimeTuningProfileDropdown';
 import { Client } from '@/lib/types';
-import { RiskProfileResponse } from '@/lib/vwap-server-types';
+import { RiskProfileResponse, RuntimeTuningProfile, RuntimeTuningProfileRequest } from '@/lib/vwap-server-types';
 
 interface HeaderProps {
   chartTimeframeMode?: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
@@ -20,6 +21,12 @@ interface HeaderProps {
   onChangeRiskProfile?: (profile: RiskProfileResponse) => void;
   onSaveRiskProfile?: (profile: any) => void;
   onDeleteRiskProfile?: (profileId: string) => void;
+  // Runtime Tuning Profiles
+  tuningProfiles?: RuntimeTuningProfile[];
+  selectedTuningProfileId?: number;
+  onSelectTuningProfile?: (profile: RuntimeTuningProfile) => void;
+  onSaveTuningProfile?: (request: RuntimeTuningProfileRequest, id?: number) => void;
+  onDeleteTuningProfile?: (id: number) => void;
 }
 
 export default function Header({ 
@@ -35,6 +42,11 @@ export default function Header({
   onChangeRiskProfile,
   onSaveRiskProfile,
   onDeleteRiskProfile,
+  tuningProfiles = [],
+  selectedTuningProfileId,
+  onSelectTuningProfile,
+  onSaveTuningProfile,
+  onDeleteTuningProfile,
 }: HeaderProps) {
   return (
     <header className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
@@ -69,6 +81,15 @@ export default function Header({
               onSelect={onChangeRiskProfile}
               onSaveProfile={onSaveRiskProfile}
               onDeleteProfile={onDeleteRiskProfile}
+            />
+          )}
+          {onSelectTuningProfile && onSaveTuningProfile && (
+            <RuntimeTuningProfileDropdown
+              profiles={tuningProfiles}
+              selectedProfileId={selectedTuningProfileId}
+              onSelect={onSelectTuningProfile}
+              onSave={onSaveTuningProfile}
+              onDelete={onDeleteTuningProfile}
             />
           )}
         </div>
