@@ -241,12 +241,23 @@ export interface BacktestApiResponse {
 // ── Client / Tenant Types ──────────────────────────────────────────────────
 
 export interface Client {
-  id: string;
+  id: string; // maps to clientId
   name: string;
-  type: 'ORGANIZATION' | 'PERSON';
+  riskProfileId?: string;
+  riskProfileDisplayName?: string;
+  profileLambda?: number;
+  profileNBins?: number;
+  defaultLambda?: number;
+  defaultNBins?: number;
+  effectiveLambda?: number;
+  effectiveNBins?: number;
+  capitalLimit?: number;
+  metadata?: Record<string, string>;
+
+  // UI parsed properties from metadata
   logo?: string;
   domain?: string;
   sector?: string;
   strategyParams: StrategyParams;
-  watchlist: any[]; // Isolated watchlist for each client
+  watchlist: any[];
 }

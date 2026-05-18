@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Search, Plus, Check, Building2, User, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, Search, Plus, Check, Building2, User, Pencil, Trash2, Eye } from 'lucide-react';
 import { Client } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import AddClientModal from './AddClientModal';
+import { RiskProfileResponse } from '@/lib/vwap-server-types';
+import { toast } from 'sonner';
+import DataViewModal from './DataViewModal';
 
 interface ClientDropdownProps {
   selectedClient: Client | null;
@@ -12,6 +15,7 @@ interface ClientDropdownProps {
   onSelect: (client: Client) => void;
   onAdd: (client: Client) => void;
   onDelete?: (clientId: string) => void;
+  riskProfiles?: RiskProfileResponse[];
 }
 
 export default function ClientDropdown({
@@ -20,11 +24,13 @@ export default function ClientDropdown({
   onSelect,
   onAdd,
   onDelete,
+  riskProfiles,
 }: ClientDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [viewingClient, setViewingClient] = useState<Client | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,6 +47,59 @@ export default function ClientDropdown({
     client.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getClientSubtitle = (client: Client) => {
+    const meta = client.metadata || {};
+    // Extract metadata values excluding internal JSON structures and logo
+    const metaValues = Object.entries(meta)
+      .filter(([k, v]) => k !== 'strategyParams' && k !== 'watchlist' && k !== 'logo' && k !== 'domain' && k !== 'sector' && v)
+      .map(([_, v]) => v);
+    
+    // If domain or sector are defined as root fields on client or metadata, prioritize those
+    const explicitParts = [];
+    if (client.domain || meta.domain) explicitParts.push(client.domain || meta.domain);
+    if (client.sector || meta.sector) explicitParts.push(client.sector || meta.sector);
+    if (explicitParts.length > 0) return explicitParts.join(' • ');
+
+    if (metaValues.length > 0) {
+      return metaValues.slice(0, 2).join(' • '); // Show up to 2 dynamic metadata values
+    }
+    return client.id;
+  };
+
+  const getApiFormatClient = (c: Client | null) => {
+    if (!c) return null;
+    const { strategyParams, watchlist, logo, domain, sector, ...restMeta } = c.metadata || {};
+    
+    const cleanMeta = { ...restMeta };
+    Object.keys(cleanMeta).forEach(k => {
+      if (!cleanMeta[k]) delete cleanMeta[k];
+    });
+
+    const apiObj: any = {
+      clientId: c.id,
+      name: c.name,
+      riskProfileId: c.riskProfileId,
+      riskProfileDisplayName: c.riskProfileDisplayName,
+      profileLambda: c.profileLambda,
+      profileNBins: c.profileNBins,
+      defaultLambda: c.defaultLambda,
+      defaultNBins: c.defaultNBins,
+      effectiveLambda: c.effectiveLambda,
+      effectiveNBins: c.effectiveNBins,
+      capitalLimit: c.capitalLimit,
+    };
+
+    if (Object.keys(cleanMeta).length > 0) {
+      apiObj.metadata = cleanMeta;
+    }
+
+    Object.keys(apiObj).forEach(k => {
+      if (apiObj[k] === undefined) delete apiObj[k];
+    });
+
+    return apiObj;
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -48,7 +107,7 @@ export default function ClientDropdown({
         className="flex items-center gap-3 px-4 py-2 bg-secondary/30 hover:bg-secondary/50 border border-border rounded-sm transition-all min-w-[280px] justify-between group shadow-sm"
       >
         <div className="flex items-center gap-3 min-w-0">
-          {selectedClient?.type === 'ORGANIZATION' && selectedClient.logo ? (
+          {selectedClient?.logo ? (
             <img 
               src={selectedClient.logo} 
               alt="" 
@@ -56,11 +115,7 @@ export default function ClientDropdown({
             />
           ) : (
             <div className="w-8 h-8 rounded-sm bg-primary/5 flex items-center justify-center">
-              {selectedClient?.type === 'PERSON' ? (
-                <User className="w-5 h-5 text-primary" />
-              ) : (
-                <Building2 className="w-5 h-5 text-primary" />
-              )}
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
           )}
           <div className="flex flex-col items-start min-w-0">
@@ -69,7 +124,7 @@ export default function ClientDropdown({
             </p>
             {selectedClient && (
               <p className="text-[10px] text-primary font-medium truncate leading-tight">
-                {selectedClient.type === 'PERSON' ? 'Private Client' : selectedClient.domain} • {selectedClient.sector || 'Financial Services'}
+                {getClientSubtitle(selectedClient)}
               </p>
             )}
           </div>
@@ -113,7 +168,7 @@ export default function ClientDropdown({
                     className="flex items-center gap-3 flex-1 min-w-0"
                   >
                     <div className="relative">
-                      {client.type === 'ORGANIZATION' && client.logo ? (
+                      {client.logo ? (
                         <img 
                           src={client.logo} 
                           alt="" 
@@ -121,11 +176,7 @@ export default function ClientDropdown({
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-sm bg-secondary flex items-center justify-center">
-                          {client.type === 'PERSON' ? (
-                            <User className="w-6 h-6 text-muted-foreground" />
-                          ) : (
-                            <Building2 className="w-6 h-6 text-muted-foreground" />
-                          )}
+                          <Building2 className="w-6 h-6 text-muted-foreground" />
                         </div>
                       )}
                     </div>
@@ -137,12 +188,23 @@ export default function ClientDropdown({
                         )}
                       </div>
                       <p className="text-[10px] text-primary font-medium truncate text-left">
-                        {client.type === 'PERSON' ? 'Private Individual' : (client.domain || 'internal.system')}
+                        {getClientSubtitle(client)}
                       </p>
                     </div>
                   </button>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity pr-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingClient(client);
+                          setIsOpen(false);
+                        }}
+                        className="p-1.5 hover:bg-primary/10 hover:text-primary rounded-sm transition-colors text-muted-foreground"
+                        title="View Raw Data"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -159,9 +221,17 @@ export default function ClientDropdown({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Are you sure you want to delete ${client.name}?`)) {
-                            onDelete(client.id);
-                          }
+                          toast(`Delete ${client.name}?`, {
+                            description: 'This action cannot be undone.',
+                            action: {
+                              label: 'Delete',
+                              onClick: () => onDelete(client.id)
+                            },
+                            cancel: {
+                              label: 'Cancel',
+                              onClick: () => {}
+                            }
+                          });
                         }}
                         className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded-sm transition-colors text-muted-foreground"
                         title="Delete Client"
@@ -204,6 +274,14 @@ export default function ClientDropdown({
         }} 
         onAdd={onAdd}
         editingClient={editingClient}
+        riskProfiles={riskProfiles}
+      />
+
+      <DataViewModal
+        isOpen={!!viewingClient}
+        onClose={() => setViewingClient(null)}
+        title={viewingClient ? `Raw Data: ${viewingClient.name}` : ''}
+        data={getApiFormatClient(viewingClient)}
       />
     </div>
   );

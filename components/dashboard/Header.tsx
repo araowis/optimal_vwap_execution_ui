@@ -3,7 +3,9 @@
 import { BarChart3, Settings } from 'lucide-react';
 import StatusIndicator from './StatusIndicator';
 import ClientDropdown from './ClientDropdown';
+import RiskProfileDropdown from './RiskProfileDropdown';
 import { Client } from '@/lib/types';
+import { RiskProfileResponse } from '@/lib/vwap-server-types';
 
 interface HeaderProps {
   chartTimeframeMode?: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
@@ -13,6 +15,11 @@ interface HeaderProps {
   onSelectClient: (client: Client) => void;
   onAddClient: (client: Client) => void;
   onDeleteClient?: (clientId: string) => void;
+  riskProfiles?: RiskProfileResponse[];
+  activeRiskProfileId?: string;
+  onChangeRiskProfile?: (profile: RiskProfileResponse) => void;
+  onSaveRiskProfile?: (profile: any) => void;
+  onDeleteRiskProfile?: (profileId: string) => void;
 }
 
 export default function Header({ 
@@ -23,6 +30,11 @@ export default function Header({
   onSelectClient,
   onAddClient,
   onDeleteClient,
+  riskProfiles = [],
+  activeRiskProfileId,
+  onChangeRiskProfile,
+  onSaveRiskProfile,
+  onDeleteRiskProfile,
 }: HeaderProps) {
   return (
     <header className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
@@ -48,7 +60,17 @@ export default function Header({
             onSelect={onSelectClient}
             onAdd={onAddClient}
             onDelete={onDeleteClient}
+            riskProfiles={riskProfiles}
           />
+          {onChangeRiskProfile && onSaveRiskProfile && (
+            <RiskProfileDropdown 
+              profiles={riskProfiles}
+              activeProfileId={activeRiskProfileId}
+              onSelect={onChangeRiskProfile}
+              onSaveProfile={onSaveRiskProfile}
+              onDeleteProfile={onDeleteRiskProfile}
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-4">

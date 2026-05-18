@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { X, Building2, Sparkles, Loader2, Plus, User, Globe, Briefcase } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Building2, Sparkles, Plus, Image as ImageIcon, KeyRound, ShieldAlert, Coins, Tag, Trash2 } from 'lucide-react';
 import { Client, StrategyParams } from '@/lib/types';
+import { RiskProfileResponse } from '@/lib/vwap-server-types';
 import { cn } from '@/lib/utils';
 
 interface AddClientModalProps {
@@ -10,106 +11,136 @@ interface AddClientModalProps {
   onClose: () => void;
   onAdd: (client: Client) => void;
   editingClient?: Client | null;
+  riskProfiles?: RiskProfileResponse[];
 }
 
-export default function AddClientModal({ isOpen, onClose, onAdd, editingClient }: AddClientModalProps) {
-  const [type, setType] = useState<'ORGANIZATION' | 'PERSON'>('ORGANIZATION');
-  const [name, setName] = useState('');
-  const [domain, setDomain] = useState('');
-  const [logo, setLogo] = useState('');
-  const [sector, setSector] = useState('Financial Services');
-  const [loading, setLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const defaultStrategyParams: StrategyParams = {
+  totalQuantity: 1000,
+  numTranches: 30,
+  trancheSize: 0,
+  maxSlippage: 0.1,
+  vwapDeviation: 0.5,
+  minVolumeThreshold: 0,
+  orderType: 'LIMIT',
+  executionTimeframe: 'INTRADAY',
+  enableTxCosts: false,
+  lambda: 17.5,
+  dates: [],
+  txCostConfig: {
+    brokeragePercent: 0.12,
+    sttPercent: 0.025,
+    gstPercent: 18,
+    exchangeFeePercent: 0.00345,
+    spreadBps: 5,
+  },
+};
 
-  const [strategyParams, setStrategyParams] = useState<StrategyParams>({
-    totalQuantity: 1000,
-    numTranches: 30,
-    trancheSize: 0,
-    maxSlippage: 0.1,
-    vwapDeviation: 0.5,
-    minVolumeThreshold: 0,
-    orderType: 'LIMIT',
-    executionTimeframe: 'INTRADAY',
-    enableTxCosts: false,
-    lambda: 17.5,
-    dates: [],
-    txCostConfig: {
-      brokeragePercent: 0.12,
-      sttPercent: 0.025,
-      gstPercent: 18,
-      exchangeFeePercent: 0.00345,
-      spreadBps: 5,
-    },
-  });
+export default function AddClientModal({ isOpen, onClose, onAdd, editingClient, riskProfiles = [] }: AddClientModalProps) {
+  // Basic Details
+  const [clientId, setClientId] = useState('');
+  const [name, setName] = useState('');
+  const [logo, setLogo] = useState('');
+
+  // Risk Configuration
+  const [riskProfileId, setRiskProfileId] = useState('MODERATE');
+  const [defaultLambda, setDefaultLambda] = useState<number | ''>('');
+  const [defaultNBins, setDefaultNBins] = useState<number | ''>('');
+
+  // Capital Controls
+  const [capitalLimit, setCapitalLimit] = useState<number | ''>('');
+  const [deskCode, setDeskCode] = useState('');
+  const [team, setTeam] = useState('');
+
+  // Dynamic Metadata
+  const [dynamicMeta, setDynamicMeta] = useState<{key: string, value: string}[]>([]);
+
+  // Preserved from existing
+  const [strategyParams, setStrategyParams] = useState<StrategyParams>(defaultStrategyParams);
+  const [watchlist, setWatchlist] = useState<any[]>([]);
 
   useEffect(() => {
     if (editingClient) {
-      setType(editingClient.type);
+      setClientId(editingClient.id);
       setName(editingClient.name);
-      setDomain(editingClient.domain || '');
       setLogo(editingClient.logo || '');
-      setSector(editingClient.sector || 'Financial Services');
-      setStrategyParams(editingClient.strategyParams);
+      setRiskProfileId(editingClient.riskProfileId || 'MODERATE');
+      setDefaultLambda(editingClient.defaultLambda ?? '');
+      setDefaultNBins(editingClient.defaultNBins ?? '');
+      setCapitalLimit(editingClient.capitalLimit || '');
+      
+      const meta = editingClient.metadata || {};
+      setDeskCode(meta.deskCode || '');
+      setTeam(meta.team || '');
+      
+      const dynamic = Object.keys(meta)
+        .filter(k => !['logo', 'domain', 'sector', 'deskCode', 'team', 'strategyParams', 'watchlist'].includes(k))
+        .map(k => ({ key: k, value: meta[k] }));
+      setDynamicMeta(dynamic);
+      
+      setStrategyParams(editingClient.strategyParams || defaultStrategyParams);
+      setWatchlist(editingClient.watchlist || []);
     } else {
+      setClientId('');
       setName('');
-      setDomain('');
       setLogo('');
-      setSector('Financial Services');
-      setType('ORGANIZATION');
+      setRiskProfileId('MODERATE');
+      setDefaultLambda('');
+      setDefaultNBins('');
+      setCapitalLimit('');
+      setDeskCode('');
+      setTeam('');
+      setDynamicMeta([]);
+      setStrategyParams(defaultStrategyParams);
+      setWatchlist([]);
     }
-  }, [editingClient]);
+  }, [editingClient, isOpen]);
 
-  const fetchSuggestions = async (query: string) => {
-    if (type !== 'ORGANIZATION' || !query || query.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/clearbit/companies/suggest?query=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      setSuggestions(data || []);
-      setShowSuggestions(true);
-    } catch (e) {
-      console.error('Clearbit suggestions failed:', e);
-    } finally {
-      setLoading(false);
-    }
+  const handleAddDynamicMeta = () => {
+    setDynamicMeta([...dynamicMeta, { key: '', value: '' }]);
   };
 
-  useEffect(() => {
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    if (type === 'ORGANIZATION' && name && !logo) {
-      searchTimeoutRef.current = setTimeout(() => fetchSuggestions(name), 300);
-    } else {
-      setSuggestions([]);
-    }
-  }, [name, logo, type]);
+  const handleRemoveDynamicMeta = (index: number) => {
+    setDynamicMeta(dynamicMeta.filter((_, i) => i !== index));
+  };
+
+  const handleDynamicMetaChange = (index: number, field: 'key' | 'value', val: string) => {
+    const updated = [...dynamicMeta];
+    updated[index][field] = val;
+    setDynamicMeta(updated);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return;
+    if (!name || !clientId) return;
 
-    const clientData: Client = {
-      id: editingClient?.id || Math.random().toString(36).substr(2, 9),
-      name,
-      type,
-      domain,
-      logo,
-      sector,
-      strategyParams,
-      watchlist: editingClient?.watchlist || [],
+    const metaRecord: Record<string, string> = {};
+    if (logo?.trim()) metaRecord.logo = logo.trim();
+    if (deskCode?.trim()) metaRecord.deskCode = deskCode.trim();
+    if (team?.trim()) metaRecord.team = team.trim();
+    
+    dynamicMeta.forEach(m => {
+      if (m.key.trim() && m.value.trim()) {
+        metaRecord[m.key.trim()] = m.value.trim();
+      }
+    });
+
+    const clientData: any = {
+      id: clientId.trim(),
+      name: name.trim(),
     };
-    onAdd(clientData);
+
+    if (riskProfileId) clientData.riskProfileId = riskProfileId;
+    if (defaultLambda !== '') clientData.defaultLambda = Number(defaultLambda);
+    if (defaultNBins !== '') clientData.defaultNBins = Number(defaultNBins);
+    if (capitalLimit !== '') clientData.capitalLimit = Number(capitalLimit);
+    if (logo?.trim()) clientData.logo = logo.trim();
+    if (Object.keys(metaRecord).length > 0) clientData.metadata = metaRecord;
+
+    clientData.strategyParams = strategyParams;
+    clientData.watchlist = watchlist;
+
+    onAdd(clientData as Client);
     onClose();
-    // Reset form
-    setName('');
-    setDomain('');
-    setLogo('');
-    setSector('Financial Services');
-    setType('ORGANIZATION');
   };
 
   if (!isOpen) return null;
@@ -117,17 +148,19 @@ export default function AddClientModal({ isOpen, onClose, onAdd, editingClient }
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-card border border-border w-full max-w-2xl rounded-sm shadow-md overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        
+        {/* Header */}
         <div className="p-6 border-b border-border flex items-center justify-between bg-secondary/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-md bg-primary/5 flex items-center justify-center border border-primary/10">
-              <Plus className="w-6 h-6 text-primary" />
+              {editingClient ? <Building2 className="w-6 h-6 text-primary" /> : <Plus className="w-6 h-6 text-primary" />}
             </div>
             <div>
               <h2 className="text-lg font-bold text-foreground uppercase tracking-tight">
-                {editingClient ? 'Edit Client' : 'Add New Client'}
+                {editingClient ? 'Edit Client Configuration' : 'Create Trading Client'}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {editingClient ? 'Modify institutional partner or individual' : 'Onboard a new institutional partner or individual'}
+                {editingClient ? 'Modify client execution and risk setup' : 'Setup a new execution desk or client'}
               </p>
             </div>
           </div>
@@ -137,235 +170,240 @@ export default function AddClientModal({ isOpen, onClose, onAdd, editingClient }
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Client Type Toggle */}
-          <div className="flex p-1 bg-secondary/20 rounded-sm w-full max-w-sm mx-auto">
-            <button
-              onClick={() => setType('ORGANIZATION')}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider transition-all",
-                type === 'ORGANIZATION' ? "bg-background shadow-sm text-primary rounded-sm" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Building2 className="w-4 h-4" />
-              Organization
-            </button>
-            <button
-              onClick={() => {
-                setType('PERSON');
-                setLogo('');
-                setDomain('');
-              }}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider transition-all",
-                type === 'PERSON' ? "bg-background shadow-sm text-primary rounded-sm" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <User className="w-4 h-4" />
-              Individual
-            </button>
-          </div>
-
-          {/* Client Identity Section */}
-          <section className="space-y-4">
-            <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
-              {type === 'ORGANIZATION' ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              {type === 'ORGANIZATION' ? 'Organization Identity' : 'Individual Identity'}
-            </h3>
+          <form id="client-form" onSubmit={handleSubmit} className="space-y-8">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                  {type === 'ORGANIZATION' ? 'Company Name' : 'Full Name'}
-                </label>
-                <div className="relative">
+            {/* 1. Basic Details */}
+            <section className="space-y-4">
+              <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2 border-b border-border/50 pb-2">
+                <Building2 className="w-4 h-4" />
+                Basic Details
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Client ID <span className="text-destructive">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      disabled={!!editingClient}
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                      className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none pl-10 disabled:opacity-50"
+                      placeholder="e.g. HDFC_DESK"
+                    />
+                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                  {editingClient && <p className="text-[10px] text-muted-foreground">Client ID is immutable after creation.</p>}
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Display Name <span className="text-destructive">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      if (logo) setLogo('');
-                    }}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 transition-all pl-10 outline-none"
-                    placeholder={type === 'ORGANIZATION' ? "e.g. MSCI Inc." : "e.g. Jane Doe"}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="e.g. HDFC Equities Desk"
                   />
-                  {type === 'ORGANIZATION' ? (
-                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  )}
-                  {loading && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary animate-spin" />}
                 </div>
 
-                {/* Clearbit Suggestions (Only for Orgs) */}
-                {type === 'ORGANIZATION' && showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-sm shadow-md overflow-hidden divide-y divide-border/50 max-h-60 overflow-y-auto">
-                    {suggestions.map((s: any, i) => {
-                      const googleLogo = `https://www.google.com/s2/favicons?domain=${s.domain}&sz=128`;
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => {
-                            setName(s.name);
-                            setDomain(s.domain);
-                            setLogo(googleLogo);
-                            setShowSuggestions(false);
-                          }}
-                          className="w-full px-4 py-2.5 text-left hover:bg-secondary/50 flex items-center gap-3 transition-colors"
-                        >
-                          <img src={googleLogo} className="w-10 h-10 rounded-sm bg-white object-contain" alt="" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{s.domain}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Profile Image URL (Optional)
+                  </label>
+                  <div className="relative flex gap-3">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={logo}
+                        onChange={(e) => setLogo(e.target.value)}
+                        className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none pl-10"
+                        placeholder="https://example.com/logo.png"
+                      />
+                      <ImageIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    </div>
+                    {logo && (
+                      <div className="w-9 h-9 border border-border rounded-sm overflow-hidden flex-shrink-0 bg-white">
+                        <img src={logo} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
+            </section>
 
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                  {type === 'ORGANIZATION' ? 'Sector' : 'Title / Role'}
-                </label>
-                <div className="relative">
+            {/* 2. Risk Configuration */}
+            <section className="space-y-4">
+              <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2 border-b border-border/50 pb-2">
+                <ShieldAlert className="w-4 h-4" />
+                Risk Configuration
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Risk Profile <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    value={riskProfileId}
+                    onChange={(e) => setRiskProfileId(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                  >
+                    {riskProfiles && riskProfiles.length > 0 ? (
+                      riskProfiles.map(p => (
+                        <option key={p.profileId} value={p.profileId}>
+                          {p.displayName} ({p.profileId})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="CONSERVATIVE">CONSERVATIVE</option>
+                        <option value="MODERATE">MODERATE</option>
+                        <option value="AGGRESSIVE">AGGRESSIVE</option>
+                        <option value="CUSTOM">CUSTOM</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Lambda Override
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={defaultLambda}
+                    onChange={(e) => setDefaultLambda(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="Profile Default"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Execution Bins Override
+                  </label>
+                  <input
+                    type="number"
+                    value={defaultNBins}
+                    onChange={(e) => setDefaultNBins(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="Profile Default"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* 3. Capital & Organizational Controls */}
+            <section className="space-y-4">
+              <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2 border-b border-border/50 pb-2">
+                <Coins className="w-4 h-4" />
+                Capital Controls & Routing
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Capital Limit (INR)
+                  </label>
+                  <input
+                    type="number"
+                    value={capitalLimit}
+                    onChange={(e) => setCapitalLimit(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="0 = Unlimited"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Desk Code
+                  </label>
                   <input
                     type="text"
-                    value={sector}
-                    onChange={(e) => setSector(e.target.value)}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none pl-10"
-                    placeholder={type === 'ORGANIZATION' ? "e.g. Financial Services" : "e.g. Portfolio Manager"}
+                    value={deskCode}
+                    onChange={(e) => setDeskCode(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="e.g. D42"
                   />
-                  <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
+                    Team Tag
+                  </label>
+                  <input
+                    type="text"
+                    value={team}
+                    onChange={(e) => setTeam(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="e.g. equities"
+                  />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {name && (
-              <div className="flex items-start gap-4 p-4 bg-secondary/5 border border-border rounded-sm animate-in slide-in-from-top-1">
-                <div className="relative flex-shrink-0">
-                  {logo ? (
-                    <img src={logo} className="w-14 h-14 rounded-sm bg-white object-contain" alt="Logo" />
-                  ) : (
-                    <div className="w-14 h-14 bg-primary/5 rounded-sm flex items-center justify-center border border-primary/10">
-                      {type === 'ORGANIZATION' ? (
-                        <Building2 className="w-8 h-8 text-primary" />
-                      ) : (
-                        <User className="w-8 h-8 text-primary" />
-                      )}
+            {/* 4. Dynamic Metadata */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Custom Metadata
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleAddDynamicMeta}
+                  className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Field
+                </button>
+              </div>
+
+              {dynamicMeta.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic bg-secondary/10 p-3 rounded-sm border border-border border-dashed text-center">
+                  No custom metadata defined. Use this for UI preferences or specific strategy tags.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {dynamicMeta.map((meta, index) => (
+                    <div key={index} className="flex items-center gap-2 animate-in slide-in-from-top-2">
+                      <input
+                        type="text"
+                        value={meta.key}
+                        onChange={(e) => handleDynamicMetaChange(index, 'key', e.target.value)}
+                        placeholder="Key (e.g. ui_theme)"
+                        className="flex-1 px-3 py-1.5 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none font-mono text-xs"
+                      />
+                      <input
+                        type="text"
+                        value={meta.value}
+                        onChange={(e) => handleDynamicMetaChange(index, 'value', e.target.value)}
+                        placeholder="Value (e.g. dark)"
+                        className="flex-[2] px-3 py-1.5 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDynamicMeta(index)}
+                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  )}
+                  ))}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-foreground uppercase tracking-tight truncate">{name}</p>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setName('');
-                        setLogo('');
-                        setDomain('');
-                      }}
-                      className="p-1 hover:bg-secondary rounded-sm transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-primary font-medium">{domain || (type === 'PERSON' ? 'Private Individual' : 'internal.system')}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold tracking-widest">
-                    {type === 'ORGANIZATION' ? 'Institutional Partner' : 'Private Client'} • {sector}
-                  </p>
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Strategy Parameters Section */}
-          <section className="space-y-4">
-            <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Default Strategy Parameters
-            </h3>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Total Quantity</label>
-                <input
-                  type="number"
-                  value={strategyParams.totalQuantity}
-                  onChange={(e) => setStrategyParams({...strategyParams, totalQuantity: parseInt(e.target.value) || 0})}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Num Tranches</label>
-                <input
-                  type="number"
-                  value={strategyParams.numTranches}
-                  onChange={(e) => setStrategyParams({...strategyParams, numTranches: parseInt(e.target.value) || 0})}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Lambda (Risk)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={strategyParams.lambda}
-                  onChange={(e) => setStrategyParams({...strategyParams, lambda: parseFloat(e.target.value) || 0})}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Transaction Costs Section */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Transaction Costs</h3>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={strategyParams.enableTxCosts}
-                  onChange={(e) => setStrategyParams({...strategyParams, enableTxCosts: e.target.checked})}
-                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20"
-                />
-                <span className="text-xs font-medium text-muted-foreground">Enable Costs</span>
-              </label>
-            </div>
-            
-            <div className={cn("grid grid-cols-2 md:grid-cols-3 gap-6 transition-all duration-300", !strategyParams.enableTxCosts ? "opacity-30 pointer-events-none scale-[0.99]" : "opacity-100 scale-100")}>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Brokerage (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={strategyParams.txCostConfig.brokeragePercent}
-                  onChange={(e) => setStrategyParams({
-                    ...strategyParams, 
-                    txCostConfig: {...strategyParams.txCostConfig, brokeragePercent: parseFloat(e.target.value) || 0}
-                  })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Spread (bps)</label>
-                <input
-                  type="number"
-                  value={strategyParams.txCostConfig.spreadBps}
-                  onChange={(e) => setStrategyParams({
-                    ...strategyParams, 
-                    txCostConfig: {...strategyParams.txCostConfig, spreadBps: parseInt(e.target.value) || 0}
-                  })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm outline-none"
-                />
-              </div>
-            </div>
-          </section>
+              )}
+            </section>
+          </form>
         </div>
 
+        {/* Footer */}
         <div className="p-6 border-t border-border bg-secondary/5 flex items-center justify-end gap-3">
           <button
             type="button"
@@ -375,9 +413,11 @@ export default function AddClientModal({ isOpen, onClose, onAdd, editingClient }
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
-            className="px-8 py-2 bg-primary text-primary-foreground rounded-sm text-xs font-bold hover:bg-primary/90 transition-all uppercase tracking-wider shadow-sm"
+            type="submit"
+            form="client-form"
+            className="px-8 py-2 bg-primary text-primary-foreground rounded-sm text-xs font-bold hover:bg-primary/90 transition-all uppercase tracking-wider shadow-sm flex items-center gap-2"
           >
+            <Sparkles className="w-4 h-4" />
             {editingClient ? 'Save Changes' : 'Create Client'}
           </button>
         </div>

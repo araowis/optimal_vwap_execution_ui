@@ -13,6 +13,11 @@ import {
   AnalyticsStatusResponse,
   MarketDataLatestResponse,
   MarketDataCandlesResponse,
+  CreateClientRequest,
+  ChangeRiskProfileRequest,
+  ClientResponse,
+  RiskProfileRequest,
+  RiskProfileResponse,
 } from './vwap-server-types';
 
 // Re-export types for convenience
@@ -146,6 +151,124 @@ class VWAPServerService {
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * POST /api/clients
+   * Creates a new client
+   */
+  async createClient(request: CreateClientRequest): Promise<ClientResponse> {
+    const response = await this.fetch('/api/clients', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    return response.json();
+  }
+
+  /**
+   * GET /api/clients
+   * Returns all clients with resolved profile details
+   */
+  async getClients(): Promise<ClientResponse[]> {
+    const response = await this.fetch('/api/clients');
+    return response.json();
+  }
+
+  /**
+   * GET /api/clients/{clientId}
+   * Returns a single client by ID
+   */
+  async getClient(clientId: string): Promise<ClientResponse> {
+    const response = await this.fetch(`/api/clients/${encodeURIComponent(clientId)}`);
+    return response.json();
+  }
+
+  /**
+   * PATCH /api/clients/{clientId}
+   * Partial update of mutable fields
+   */
+  async updateClient(clientId: string, request: Partial<CreateClientRequest>): Promise<ClientResponse> {
+    const response = await this.fetch(`/api/clients/${encodeURIComponent(clientId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(request),
+    });
+    return response.json();
+  }
+
+  /**
+   * PATCH /api/clients/{clientId}/risk-profile
+   * Changes the active risk profile
+   */
+  async changeRiskProfile(clientId: string, request: ChangeRiskProfileRequest): Promise<ClientResponse> {
+    const response = await this.fetch(`/api/clients/${encodeURIComponent(clientId)}/risk-profile`, {
+      method: 'PATCH',
+      body: JSON.stringify(request),
+    });
+    return response.json();
+  }
+
+  /**
+   * DELETE /api/clients/{clientId}
+   * Removes a client
+   */
+  async deleteClient(clientId: string): Promise<ClientResponse> {
+    const response = await this.fetch(`/api/clients/${encodeURIComponent(clientId)}`, {
+      method: 'DELETE',
+    });
+    return response.json();
+  }
+
+  /**
+   * GET /api/risk-profiles
+   * Returns all profiles (built-in + custom)
+   */
+  async getRiskProfiles(): Promise<RiskProfileResponse[]> {
+    const response = await this.fetch('/api/risk-profiles');
+    return response.json();
+  }
+
+  /**
+   * GET /api/risk-profiles/{profileId}
+   * Returns one profile by ID
+   */
+  async getRiskProfile(profileId: string): Promise<RiskProfileResponse> {
+    const response = await this.fetch(`/api/risk-profiles/${encodeURIComponent(profileId)}`);
+    return response.json();
+  }
+
+  /**
+   * POST /api/risk-profiles
+   * Creates a new custom profile
+   */
+  async createRiskProfile(request: RiskProfileRequest): Promise<RiskProfileResponse> {
+    const response = await this.fetch('/api/risk-profiles', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    return response.json();
+  }
+
+  /**
+   * PATCH /api/risk-profiles/{profileId}
+   * Partial update of a custom profile
+   */
+  async updateRiskProfile(profileId: string, request: Partial<RiskProfileRequest>): Promise<RiskProfileResponse> {
+    const response = await this.fetch(`/api/risk-profiles/${encodeURIComponent(profileId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(request),
+    });
+    return response.json();
+  }
+
+  /**
+   * DELETE /api/risk-profiles/{profileId}
+   * Deletes a custom profile
+   */
+  async deleteRiskProfile(profileId: string): Promise<{ status: string; message: string }> {
+    const response = await this.fetch(`/api/risk-profiles/${encodeURIComponent(profileId)}`, {
+      method: 'DELETE',
+    });
+    return response.json();
   }
 }
 

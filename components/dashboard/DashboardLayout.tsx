@@ -31,9 +31,11 @@ import {
   WSSignalMessage,
   WSCalibrationMessage,
   WSRegimeMessage,
+  RiskProfileResponse,
 } from '@/lib/vwap-server-types';
 import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Zap, Activity } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface DashboardLayoutProps {
   customizationPrefs: CustomizationPrefs;
@@ -108,7 +110,7 @@ export default function DashboardLayout({
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [customizationCollapsed, setCustomizationCollapsed] = useState(mode === 'realtime');
   const [isBackendDataLive, setIsBackendDataLive] = useState(false);
-  
+
   // VWAP Live Strategy State
   const [liveBuySignals, setLiveBuySignals] = useState<BackendBuySignal[]>([]);
   const [liveCalibration, setLiveCalibration] = useState<WSCalibrationMessage | null>(null);
@@ -116,63 +118,188 @@ export default function DashboardLayout({
   const [signalsMap, setSignalsMap] = useState<Record<string, BackendBuySignal[]>>({});
   const [liveRegime, setLiveRegime] = useState<WSRegimeMessage | null>(null);
 
-  // Initialize clients on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('vwap_dashboard_clients');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Migration: Ensure logos and sectors are set for existing clients
-          const migrated = parsed.map(c => {
-            const updated = { ...c };
-            if (!updated.type) {
-              updated.type = 'ORGANIZATION'; // Default old clients to Organization
-            }
-            // Force update MSCI default or any missing logos
-            if (updated.type === 'ORGANIZATION' && (updated.id === 'msci-default' || !updated.logo || updated.logo.includes('clearbit'))) {
-              const domain = updated.domain || (updated.id === 'msci-default' ? 'msci.com' : '');
-              if (domain) {
-                updated.logo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-                updated.domain = domain;
-              }
-            }
-            if (!updated.sector) {
-              updated.sector = updated.type === 'PERSON' ? 'Wealth Management' : 'Financial Services';
-            }
-            return updated;
-          });
-          setClients(migrated);
-          setSelectedClient(migrated[0]);
-          setStrategyParams(migrated[0].strategyParams);
-          return;
-        }
-      } catch (e) {
-        console.error('Failed to parse saved clients', e);
-      }
+  const [riskProfiles, setRiskProfiles] = useState<RiskProfileResponse[]>([]);
+
+  const defaultStrategyParams = {
+    totalQuantity: 1000,
+    numTranches: 30,
+    trancheSize: 0,
+    maxSlippage: 0.1,
+    vwapDeviation: 0.5,
+    minVolumeThreshold: 0,
+    orderType: 'LIMIT' as const,
+    executionTimeframe: 'INTRADAY' as const,
+    enableTxCosts: false,
+    lambda: 17.5,
+    dates: [],
+    txCostConfig: {
+      brokeragePercent: 0.12,
+      sttPercent: 0.025,
+      gstPercent: 18,
+      exchangeFeePercent: 0.00345,
+      spreadBps: 5,
+    },
+  };
+
+  const mapClientResponseToClient = (res: any): Client => {
+    const metadata = res.metadata || {};
+    let parsedStrategyParams = { ...defaultStrategyParams };
+    let parsedWatchlist = [];
+    try {
+      if (metadata.strategyParams) parsedStrategyParams = { ...defaultStrategyParams, ...JSON.parse(metadata.strategyParams) };
+      if (metadata.watchlist) parsedWatchlist = JSON.parse(metadata.watchlist);
+    } catch (e) {
+      console.error('Failed to parse client metadata', e);
     }
 
-    // Default Client
-    const defaultClient: Client = {
-      id: 'msci-default',
-      name: 'MSCI',
-      type: 'ORGANIZATION',
-      domain: 'msci.com',
-      logo: 'https://www.google.com/s2/favicons?domain=msci.com&sz=128',
-      sector: 'Financial Services',
-      strategyParams: { ...strategyParams },
-      watchlist: [],
+    if (res.effectiveLambda !== undefined && res.effectiveLambda !== null) parsedStrategyParams.lambda = res.effectiveLambda;
+    if (res.effectiveNBins !== undefined && res.effectiveNBins !== null) parsedStrategyParams.numTranches = res.effectiveNBins;
+
+    return {
+      id: res.clientId || '',
+      name: res.name || '',
+      riskProfileId: res.riskProfileId,
+      riskProfileDisplayName: res.riskProfileDisplayName,
+      profileLambda: res.profileLambda,
+      profileNBins: res.profileNBins,
+      defaultLambda: res.defaultLambda,
+      defaultNBins: res.defaultNBins,
+      effectiveLambda: res.effectiveLambda,
+      effectiveNBins: res.effectiveNBins,
+      capitalLimit: res.capitalLimit,
+      metadata,
+      logo: metadata.logo,
+      domain: metadata.domain,
+      sector: metadata.sector,
+      strategyParams: parsedStrategyParams,
+      watchlist: parsedWatchlist
     };
-    setClients([defaultClient]);
-    setSelectedClient(defaultClient);
+  };
+
+  const mapClientToCreateRequest = (client: Client) => {
+    const request: any = {
+      clientId: client.id,
+      name: client.name,
+    };
+
+    if (client.riskProfileId) request.riskProfileId = client.riskProfileId;
+    if (client.defaultLambda !== undefined) request.defaultLambda = client.defaultLambda;
+    if (client.defaultNBins !== undefined) request.defaultNBins = client.defaultNBins;
+    if (client.capitalLimit !== undefined) request.capitalLimit = client.capitalLimit;
+
+    const meta: Record<string, string> = { ...client.metadata };
+
+    if (client.logo?.trim()) meta.logo = client.logo.trim();
+    if (client.domain?.trim()) meta.domain = client.domain.trim();
+    if (client.sector?.trim()) meta.sector = client.sector.trim();
+
+    // Clean up empty metadata
+    Object.keys(meta).forEach(key => {
+      if (meta[key] === '' || meta[key] === undefined || meta[key] === null) {
+        delete meta[key];
+      }
+    });
+
+    if (Object.keys(meta).length > 0) {
+      request.metadata = meta;
+    }
+
+    return request;
+  };
+
+  const fetchClients = useCallback(async () => {
+    try {
+      const response = await vwapServerService.getClients();
+      if (response && response.length > 0) {
+        const mapped = response.map(mapClientResponseToClient);
+        setClients(mapped);
+        if (!selectedClient || !mapped.find(c => c.id === selectedClient.id)) {
+          setSelectedClient(mapped[0]);
+          setStrategyParams(mapped[0].strategyParams);
+        }
+      } else {
+        const defaultClient: Client = {
+          id: 'msci-default',
+          name: 'MSCI',
+          domain: 'msci.com',
+          logo: 'https://www.google.com/s2/favicons?domain=msci.com&sz=128',
+          sector: 'Financial Services',
+          strategyParams: { ...defaultStrategyParams },
+          watchlist: [],
+        };
+        setClients([defaultClient]);
+        setSelectedClient(defaultClient);
+      }
+    } catch (e) {
+      console.error('Failed to fetch clients from server', e);
+    }
+  }, [selectedClient]);
+
+  const fetchRiskProfiles = useCallback(async () => {
+    try {
+      const response = await vwapServerService.getRiskProfiles();
+      setRiskProfiles(response || []);
+    } catch (e) {
+      console.error('Failed to fetch risk profiles from server', e);
+    }
   }, []);
 
-  // Persist clients when they change
   useEffect(() => {
-    if (clients.length > 0) {
-      localStorage.setItem('vwap_dashboard_clients', JSON.stringify(clients));
+    fetchClients();
+    fetchRiskProfiles();
+  }, [fetchClients, fetchRiskProfiles]);
+
+  const updateClientOnServer = async (client: Client) => {
+    try {
+      await vwapServerService.updateClient(client.id, mapClientToCreateRequest(client));
+    } catch (error) {
+      console.error('Failed to update client on server:', error);
     }
-  }, [clients]);
+  };
+
+  const handleChangeClientRiskProfile = async (profile: RiskProfileResponse) => {
+    if (!selectedClient || !profile.profileId) return;
+    try {
+      const res = await vwapServerService.changeRiskProfile(selectedClient.id, { riskProfileId: profile.profileId });
+      const updatedClient = mapClientResponseToClient(res);
+      setSelectedClient(updatedClient);
+      setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
+      setStrategyParams(updatedClient.strategyParams); // Keep Parameters panel in sync
+      toast.success('Client risk profile updated');
+    } catch (e) {
+      console.error('Failed to change client risk profile:', e);
+      toast.error('Failed to update client risk profile.');
+    }
+  };
+
+  const handleSaveRiskProfile = async (profile: RiskProfileResponse) => {
+    if (!profile.profileId) return;
+    try {
+      const exists = riskProfiles.find(p => p.profileId === profile.profileId);
+      if (exists) {
+        await vwapServerService.updateRiskProfile(profile.profileId, profile);
+        toast.success(`Risk profile ${profile.profileId} updated`);
+      } else {
+        await vwapServerService.createRiskProfile(profile);
+        toast.success(`Risk profile ${profile.profileId} created`);
+      }
+      await fetchRiskProfiles();
+    } catch (error) {
+      console.error('Failed to save risk profile:', error);
+      toast.error('Failed to save risk profile.');
+    }
+  };
+
+  const handleDeleteRiskProfile = async (profileId: string) => {
+    try {
+      await vwapServerService.deleteRiskProfile(profileId);
+      await fetchRiskProfiles();
+      toast.success(`Risk profile ${profileId} deleted`);
+    } catch (error) {
+      console.error('Failed to delete risk profile:', error);
+      toast.error('Failed to delete risk profile. It may be in use.');
+    }
+  };
 
   // Sync selectedClient with strategyParams when they change locally
   const handleStrategyParamsChange = (newParams: StrategyParams) => {
@@ -180,9 +307,10 @@ export default function DashboardLayout({
     if (selectedClient) {
       const updatedClient = { ...selectedClient, strategyParams: newParams };
       setSelectedClient(updatedClient);
-      setClients(prev => prev.map(c => 
+      setClients(prev => prev.map(c =>
         c.id === selectedClient.id ? updatedClient : c
       ));
+      updateClientOnServer(updatedClient);
     }
   };
 
@@ -191,9 +319,10 @@ export default function DashboardLayout({
     if (selectedClient) {
       const updatedClient = { ...selectedClient, watchlist: newWatchlist };
       setSelectedClient(updatedClient);
-      setClients(prev => prev.map(c => 
+      setClients(prev => prev.map(c =>
         c.id === selectedClient.id ? updatedClient : c
       ));
+      updateClientOnServer(updatedClient);
     }
   };
 
@@ -206,45 +335,63 @@ export default function DashboardLayout({
     setCandles([]);
     setChartData([]);
     setImportContext(null);
-    
+
     // Set branding to client logo/name by default
     setCompanyLogo(client.logo || '');
     setInstrumentName(client.name);
   };
 
-  const handleAddClient = (client: Client) => {
-    setClients(prev => {
-      const exists = prev.find(c => c.id === client.id);
+  const handleAddClient = async (client: Client) => {
+    try {
+      const exists = clients.find(c => c.id === client.id);
+      const req = mapClientToCreateRequest(client);
+
+      let res;
       if (exists) {
-        return prev.map(c => c.id === client.id ? client : c);
+        res = await vwapServerService.updateClient(client.id, req);
+        toast.success(`Client ${client.name} updated successfully`);
+      } else {
+        res = await vwapServerService.createClient(req);
+        toast.success(`Client ${client.name} created successfully`);
       }
-      return [...prev, client];
-    });
-    
-    // If we're updating the currently selected client, sync the state
-    if (selectedClient?.id === client.id) {
-      setSelectedClient(client);
-      setStrategyParams(client.strategyParams);
-      setCompanyLogo(client.logo || '');
-      setInstrumentName(client.name);
-    } else {
-      handleSelectClient(client);
+
+      const mapped = mapClientResponseToClient(res);
+      setClients(prev => {
+        if (exists) return prev.map(c => c.id === mapped.id ? mapped : c);
+        return [...prev, mapped];
+      });
+
+      if (selectedClient?.id === mapped.id || !exists) {
+        setSelectedClient(mapped);
+        setStrategyParams(mapped.strategyParams);
+        setCompanyLogo(mapped.logo || '');
+        setInstrumentName(mapped.name);
+      }
+    } catch (error) {
+      console.error('Failed to save client:', error);
+      toast.error('Failed to save client. See console for details.');
     }
   };
 
-  const handleDeleteClient = (clientId: string) => {
-    setClients(prev => {
-      const newClients = prev.filter(c => c.id !== clientId);
-      // If we deleted the currently selected client, switch to the first available one
-      if (selectedClient?.id === clientId) {
-        if (newClients.length > 0) {
-          handleSelectClient(newClients[0]);
-        } else {
-          setSelectedClient(null);
+  const handleDeleteClient = async (clientId: string) => {
+    try {
+      await vwapServerService.deleteClient(clientId);
+      setClients(prev => {
+        const newClients = prev.filter(c => c.id !== clientId);
+        if (selectedClient?.id === clientId) {
+          if (newClients.length > 0) {
+            handleSelectClient(newClients[0]);
+          } else {
+            setSelectedClient(null);
+          }
         }
-      }
-      return newClients;
-    });
+        return newClients;
+      });
+      toast.success(`Client ${clientId} deleted`);
+    } catch (error) {
+      console.error('Failed to delete client:', error);
+      toast.error('Failed to delete client. See console for details.');
+    }
   };
 
   // Ensure client branding is restored when no stock is selected
@@ -287,11 +434,11 @@ export default function DashboardLayout({
           xStar: msg.xStar,
           binIdx: msg.binIdx,
         };
-        
+
         setSignalsMap(prev => {
           const updatedSignals = [...(prev[msg.instrument] || []), newSignal];
           const newMap = { ...prev, [msg.instrument]: updatedSignals };
-          
+
           // Persist to localStorage
           try {
             const today = new Date().toISOString().split('T')[0];
@@ -299,7 +446,7 @@ export default function DashboardLayout({
           } catch (e) {
             console.error('Failed to persist signals to localStorage', e);
           }
-          
+
           return newMap;
         });
 
@@ -313,7 +460,7 @@ export default function DashboardLayout({
           ...prev,
           [msg.instrument]: msg
         }));
-        
+
         if (selectedWatchlistStock?.instrument_key === msg.instrument && msg.currentVWAP > 0) {
           setLiveCalibration(msg);
         }
@@ -333,7 +480,7 @@ export default function DashboardLayout({
     if (key) {
       if (calibrationMap[key]) setLiveCalibration(calibrationMap[key]);
       else setLiveCalibration(null);
-      
+
       if (signalsMap[key]) setLiveBuySignals(signalsMap[key]);
       else setLiveBuySignals([]);
     } else {
@@ -346,7 +493,7 @@ export default function DashboardLayout({
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     const key = `vwap_signals_${today}`;
-    
+
     // Load today's signals
     try {
       const stored = localStorage.getItem(key);
@@ -356,7 +503,7 @@ export default function DashboardLayout({
     } catch (e) {
       console.error('Failed to load signals from localStorage', e);
     }
-    
+
     // Cleanup old data (anything not from today)
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -461,7 +608,7 @@ export default function DashboardLayout({
       }
     };
   }, [mode, upstoxAccessToken, selectedWatchlistStock, wsConnected]);
-  
+
   // Reset state when switching modes to ensure clean transition
   useEffect(() => {
     setCandles([]);
@@ -490,10 +637,10 @@ export default function DashboardLayout({
 
   const handleWatchlistStockSelect = useCallback(async (stock: any) => {
     // console.log('handleWatchlistStockSelect called with stock:', stock, 'Mode:', mode);
-    
+
     setSelectedWatchlistStock(stock);
     setRightSidebarCollapsed(false);
-    
+
     // Immediately clear current chart to avoid showing previous stock
     setCandles([]);
     setChartData([]);
@@ -518,7 +665,7 @@ export default function DashboardLayout({
           console.log('[DEBUG] Attempting to fetch backend candles for:', stock.instrument_key);
           const backendRes = await vwapServerService.getMarketDataCandles(stock.instrument_key);
           console.log('[DEBUG] Backend candles response:', backendRes);
-          
+
           if (backendRes && backendRes.candles && backendRes.candles.length > 0) {
             fetchedCandles = backendRes.candles.map((c: any) => ({
               timestamp: new Date(c.timestamp),
@@ -532,7 +679,7 @@ export default function DashboardLayout({
             usedBackend = true;
             setIsBackendDataLive(true);
             console.log('[DEBUG] Successfully mapped backend candles. Count:', fetchedCandles.length);
-            
+
             // Also grab the current tick from the candles response to initialize realtimePriceUpdate
             if (backendRes.current) {
               console.log('[DEBUG] Setting initial realtime update from backend current:', backendRes.current);
@@ -814,7 +961,7 @@ export default function DashboardLayout({
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Header */}
-      <Header 
+      <Header
         chartTimeframeMode={chartTimeframeMode}
         onTimeframeChange={setChartTimeframeMode}
         selectedClient={selectedClient}
@@ -822,6 +969,11 @@ export default function DashboardLayout({
         onSelectClient={handleSelectClient}
         onAddClient={handleAddClient}
         onDeleteClient={handleDeleteClient}
+        riskProfiles={riskProfiles}
+        activeRiskProfileId={selectedClient?.riskProfileId}
+        onChangeRiskProfile={handleChangeClientRiskProfile}
+        onSaveRiskProfile={handleSaveRiskProfile}
+        onDeleteRiskProfile={handleDeleteRiskProfile}
       />
 
       {/* Main Content */}
@@ -829,7 +981,7 @@ export default function DashboardLayout({
         {/* Left Panel - Data Upload & Parameters */}
         {!leftSidebarCollapsed ? (
           <>
-            <div 
+            <div
               className="bg-card rounded-l-lg border border-border flex flex-col overflow-hidden"
               style={{ width: `${leftSidebarWidth}px` }}
             >
@@ -907,13 +1059,12 @@ export default function DashboardLayout({
                   <button
                     key={r.date}
                     onClick={() => handleActiveDateChange(r.date)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                      r.date === activeDate
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${r.date === activeDate
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : r.status === 'OK'
-                        ? 'bg-background border border-border text-foreground hover:bg-secondary'
-                        : 'bg-background border border-dashed border-border text-muted-foreground'
-                    }`}
+                          ? 'bg-background border border-border text-foreground hover:bg-secondary'
+                          : 'bg-background border border-dashed border-border text-muted-foreground'
+                      }`}
                     title={r.status !== 'OK' ? r.errorMessage || r.status : undefined}
                   >
                     {r.date}

@@ -3,6 +3,52 @@
  * TypeScript types for VWAP Server API responses and WebSocket messages
  */
 
+// Client Types
+export interface CreateClientRequest {
+  clientId?: string;
+  name?: string;
+  riskProfileId?: string;
+  defaultLambda?: number;
+  defaultNBins?: number;
+  capitalLimit?: number;
+  metadata?: Record<string, string>;
+}
+
+export interface ChangeRiskProfileRequest {
+  riskProfileId?: string;
+}
+
+export interface ClientResponse {
+  clientId?: string;
+  name?: string;
+  riskProfileId?: string;
+  riskProfileDisplayName?: string;
+  profileLambda?: number;
+  profileNBins?: number;
+  defaultLambda?: number;
+  defaultNBins?: number;
+  effectiveLambda?: number;
+  effectiveNBins?: number;
+  capitalLimit?: number;
+  metadata?: Record<string, string>;
+}
+
+// Risk Profile Types
+export interface RiskProfileRequest {
+  profileId?: string;
+  displayName?: string;
+  defaultLambda?: number;
+  defaultNBins?: number;
+}
+
+export interface RiskProfileResponse {
+  profileId?: string;
+  displayName?: string;
+  defaultLambda?: number;
+  defaultNBins?: number;
+  isDefault?: boolean;
+}
+
 // Market Open Types
 export interface MarketOpenInstrument {
   instrumentKey: string;
