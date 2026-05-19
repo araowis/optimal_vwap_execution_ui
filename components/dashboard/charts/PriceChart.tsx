@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   ComposedChart,
   Line,
@@ -15,26 +15,37 @@ import {
   Legend,
   Bar,
   Cell,
-} from 'recharts';
-import { ChartDatapoint, CustomizationPrefs, BackendBuySignal } from '@/lib/types';
+} from "recharts";
+import {
+  ChartDatapoint,
+  CustomizationPrefs,
+  BackendBuySignal,
+} from "@/lib/types";
 
 // ── Custom green "pin" dot for backend buy signals ────────────────────────────
 function BackendSignalDot(props: any) {
-  const { cx, cy, payload, markerType = 'PIN', markerSize = 8 } = props;
+  const { cx, cy, payload, markerType = "PIN", markerSize = 8 } = props;
   if (!payload?.backendSignalPrice) return null;
 
   const r = markerSize;
 
-  if (markerType === 'DOT') {
+  if (markerType === "DOT") {
     return (
       <g>
         <circle cx={cx} cy={cy} r={r + 4} fill="#22c55e" fillOpacity={0.15} />
-        <circle cx={cx} cy={cy} r={r} fill="#22c55e" stroke="#ffffff" strokeWidth={2} />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="#22c55e"
+          stroke="#ffffff"
+          strokeWidth={2}
+        />
       </g>
     );
   }
 
-  if (markerType === 'ARROW') {
+  if (markerType === "ARROW") {
     return (
       <g>
         <path
@@ -49,16 +60,29 @@ function BackendSignalDot(props: any) {
 
   // Default: PIN
   return (
-    <g style={{ cursor: 'pointer' }}>
+    <g style={{ cursor: "pointer" }}>
       {/* Upward pin triangle — tip pointing at price (cy) */}
       <polygon
         points={`${cx - 5},${cy + r + 8} ${cx + 5},${cy + r + 8} ${cx},${cy}`}
         fill="#22c55e"
       />
       {/* Outer glow ring */}
-      <circle cx={cx} cy={cy + r + 8} r={r + 4} fill="#22c55e" fillOpacity={0.15} />
+      <circle
+        cx={cx}
+        cy={cy + r + 8}
+        r={r + 4}
+        fill="#22c55e"
+        fillOpacity={0.15}
+      />
       {/* Main green circle */}
-      <circle cx={cx} cy={cy + r + 8} r={r} fill="#22c55e" stroke="#ffffff" strokeWidth={2.5} />
+      <circle
+        cx={cx}
+        cy={cy + r + 8}
+        r={r}
+        fill="#22c55e"
+        stroke="#ffffff"
+        strokeWidth={2.5}
+      />
       {/* "B" label inside the circle */}
       <text
         x={cx}
@@ -74,44 +98,59 @@ function BackendSignalDot(props: any) {
     </g>
   );
 }
-
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 function PriceTooltip({ active, payload, label, coordinate }: any) {
   if (!active || !payload || !payload.length) return null;
 
   // Smart positioning: If we're on the right side of the chart, flip the tooltip left
   const isRightSide = coordinate && coordinate.x > 800; // Rough estimate or use relative %
-  const transform = isRightSide ? 'translateX(-100%) translateX(-20px)' : 'translateX(20px)';
+  const transform = isRightSide
+    ? "translateX(-100%) translateX(-20px)"
+    : "translateX(20px)";
 
   const row = payload[0]?.payload;
   if (!row) return null;
 
-  const ts = typeof row.timestamp === 'number' ? new Date(row.timestamp) : new Date(label);
+  const ts =
+    typeof row.timestamp === "number"
+      ? new Date(row.timestamp)
+      : new Date(label);
   const isUp = row.close >= row.open;
-  const priceColor = isUp ? '#10b981' : '#f43f5e';
+  const priceColor = isUp ? "#10b981" : "#f43f5e";
   const signals: BackendBuySignal[] = row.backendSignalMetaList ?? [];
   const hasSignals = signals.length > 0;
 
   return (
     <div
       style={{
-        backgroundColor: 'var(--card)',
-        border: `1.5px solid ${hasSignals ? '#22c55e' : 'var(--border)'}`,
+        backgroundColor: "var(--card)",
+        border: `1.5px solid ${hasSignals ? "#22c55e" : "var(--border)"}`,
         borderRadius: 12,
-        padding: '10px 14px',
+        padding: "10px 14px",
         boxShadow: hasSignals
-          ? '0 0 0 3px rgba(34,197,94,0.12), 0 12px 24px -10px rgba(0,0,0,0.3)'
-          : '0 10px 20px -10px rgba(0,0,0,0.25)',
+          ? "0 0 0 3px rgba(34,197,94,0.12), 0 12px 24px -10px rgba(0,0,0,0.3)"
+          : "0 10px 20px -10px rgba(0,0,0,0.25)",
         minWidth: 210,
         transform,
-        transition: 'transform 0.1s ease-out',
-        pointerEvents: 'none',
+        transition: "transform 0.1s ease-out",
+        pointerEvents: "none",
         zIndex: 50,
       }}
     >
       {/* Time header */}
-      <div style={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 12, marginBottom: 6 }}>
-        {ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+      <div
+        style={{
+          color: "var(--foreground)",
+          fontWeight: 700,
+          fontSize: 12,
+          marginBottom: 6,
+        }}
+      >
+        {ts.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}
       </div>
 
       {/* Buy signal detail panel(s) */}
@@ -120,26 +159,67 @@ function PriceTooltip({ active, payload, label, coordinate }: any) {
           key={`${sig.binIdx}-${sig.time}-${idx}`}
           style={{
             marginBottom: idx === signals.length - 1 ? 8 : 4,
-            padding: '9px 10px',
-            background: 'rgba(34,197,94,0.08)',
+            padding: "9px 10px",
+            background: "rgba(34,197,94,0.08)",
             borderRadius: 8,
-            border: '1px solid rgba(34,197,94,0.25)',
+            border: "1px solid rgba(34,197,94,0.25)",
           }}
         >
-          <div style={{ color: '#22c55e', fontWeight: 800, fontSize: 13, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div
+            style={{
+              color: "#22c55e",
+              fontWeight: 800,
+              fontSize: 13,
+              marginBottom: 6,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
             <span style={{ fontSize: 14 }}>🟢</span> Buy Signal
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 11.5,
+            }}
+          >
             <tbody>
               {[
-                ['Exec Price', `₹${sig.execPrice.toFixed(2)}`, '#22c55e'],
-                ['Executed Qty', sig.executedQty.toLocaleString(), 'var(--foreground)'],
-                ['Cum Target', sig.cumTarget.toLocaleString(), 'var(--foreground)'],
-                ['x*', sig.xStar.toFixed(4), '#94a3b8'],
+                ["Exec Price", `₹${sig.execPrice.toFixed(2)}`, "#22c55e"],
+                [
+                  "Executed Qty",
+                  sig.executedQty.toLocaleString(),
+                  "var(--foreground)",
+                ],
+                [
+                  "Cum Target",
+                  sig.cumTarget.toLocaleString(),
+                  "var(--foreground)",
+                ],
+                ["x*", sig.xStar.toFixed(4), "#94a3b8"],
               ].map(([label, val, color]) => (
                 <tr key={String(label)}>
-                  <td style={{ color: 'var(--muted-foreground)', paddingBottom: 3, paddingRight: 12 }}>{label}</td>
-                  <td style={{ color: String(color), fontWeight: 700, textAlign: 'right', paddingBottom: 3 }}>{val}</td>
+                  <td
+                    style={{
+                      color: "var(--muted-foreground)",
+                      paddingBottom: 3,
+                      paddingRight: 12,
+                    }}
+                  >
+                    {label}
+                  </td>
+                  <td
+                    style={{
+                      color: String(color),
+                      fontWeight: 700,
+                      textAlign: "right",
+                      paddingBottom: 3,
+                    }}
+                  >
+                    {val}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -148,24 +228,59 @@ function PriceTooltip({ active, payload, label, coordinate }: any) {
       ))}
 
       {/* Standard OHLCV section */}
-      <div style={{ display: 'grid', gap: 4, fontSize: 12 }}>
-        <div style={{ color: '#ef4444', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ display: "grid", gap: 4, fontSize: 12 }}>
+        <div
+          style={{
+            color: "#ef4444",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
           <span>VWAP</span>
           <span style={{ fontWeight: 700 }}>{Number(row.vwap).toFixed(2)}</span>
         </div>
-        <div style={{ color: '#3b82f6', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+        <div
+          style={{
+            color: "#3b82f6",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
           <span>Price</span>
-          <span style={{ fontWeight: 700 }}>{Number(row.close).toFixed(2)}</span>
+          <span style={{ fontWeight: 700 }}>
+            {Number(row.close).toFixed(2)}
+          </span>
         </div>
-        <div style={{ color: priceColor, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+        <div
+          style={{
+            color: priceColor,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 4,
+          }}
+        >
           <div>O: {Number(row.open).toFixed(2)}</div>
           <div>H: {Number(row.high).toFixed(2)}</div>
           <div>L: {Number(row.low).toFixed(2)}</div>
           <div>C: {Number(row.close).toFixed(2)}</div>
         </div>
-        <div style={{ color: 'var(--muted-foreground)', display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+        <div
+          style={{
+            color: "var(--muted-foreground)",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            marginTop: 4,
+            borderTop: "1px solid var(--border)",
+            paddingTop: 4,
+          }}
+        >
           <span>Volume</span>
-          <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{row.volume.toLocaleString()}</span>
+          <span style={{ fontWeight: 700, color: "var(--foreground)" }}>
+            {row.volume.toLocaleString()}
+          </span>
         </div>
       </div>
     </div>
@@ -180,10 +295,10 @@ function CandlestickShape(props: any) {
   const isUp = close >= open;
 
   // Premium Color Palette
-  const upColor = '#22c55e';      // Vibrant Green
-  const upBorder = '#166534';     // Dark Green Border
-  const downColor = '#ef4444';    // Vibrant Red
-  const downBorder = '#991b1b';   // Dark Red Border
+  const upColor = "#22c55e"; // Vibrant Green
+  const upBorder = "#166534"; // Dark Green Border
+  const downColor = "#ef4444"; // Vibrant Red
+  const downBorder = "#991b1b"; // Dark Red Border
 
   const bodyColor = isUp ? upColor : downColor;
   const borderColor = isUp ? upBorder : downBorder;
@@ -311,11 +426,11 @@ const PriceChart = React.memo(function PriceChart({
   horizontalLines = [],
 }: PriceChartProps) {
   const defaultPalette = {
-    price: '#3b82f6',
-    vwap: '#ef4444',
-    band: '#a855f7',
-    signal: '#06b6d4',
-    neutral: '#64748b',
+    price: "#3b82f6",
+    vwap: "#ef4444",
+    band: "#a855f7",
+    signal: "#06b6d4",
+    neutral: "#64748b",
   };
 
   const bandColor = prefs.bandColor || {
@@ -337,7 +452,9 @@ const PriceChart = React.memo(function PriceChart({
   const chartData = useMemo(() => {
     const mapped = data.map((d, index) => {
       const isUp = d.candle.close >= d.candle.open;
-      const isDaily = d.candle.timestamp.getHours() === 0 && d.candle.timestamp.getMinutes() === 0;
+      const isDaily =
+        d.candle.timestamp.getHours() === 0 &&
+        d.candle.timestamp.getMinutes() === 0;
       return {
         index,
         id: `candle-${index}-${d.candle.timestamp.getTime()}-${d.candle.close}`,
@@ -356,8 +473,8 @@ const PriceChart = React.memo(function PriceChart({
         volume: d.candle.volume,
         volumeUp: isUp ? d.candle.volume : 0,
         volumeDown: !isUp ? d.candle.volume : 0,
-        bodyColor: isUp ? '#10b981' : '#f43f5e',
-        wickColor: isUp ? '#10b981' : '#f43f5e',
+        bodyColor: isUp ? "#10b981" : "#f43f5e",
+        wickColor: isUp ? "#10b981" : "#f43f5e",
         // OHLC range for Recharts range bar
         ohlcRange: [d.candle.low, d.candle.high],
       };
@@ -377,9 +494,9 @@ const PriceChart = React.memo(function PriceChart({
   // Instead, we'll use a dummy Bar and let Recharts pass the coordinates if we use multiple bars,
   // or we can just use the raw values and a "trick" with the ComposedChart.
 
-  // Actually, the most reliable way in Recharts is to use a Bar with a custom shape 
+  // Actually, the most reliable way in Recharts is to use a Bar with a custom shape
   // where we pass the scale through props if we can, or we calculate it.
-  // But wait, Recharts' Bar component passes `x`, `y`, `width`, `height`. 
+  // But wait, Recharts' Bar component passes `x`, `y`, `width`, `height`.
   // If we want multiple Y coordinates, we have a problem.
 
   // WORKAROUND: In Recharts, if you have a Bar with dataKey="high" and another with dataKey="low",
@@ -404,9 +521,11 @@ const PriceChart = React.memo(function PriceChart({
     const pretradeValue =
       pretradeVolumeCurve.length > 0
         ? chartData.map((_, i) => {
-          const idx = Math.floor((i / data.length) * pretradeVolumeCurve.length);
-          return pretradeVolumeCurve[idx] || 0;
-        })
+            const idx = Math.floor(
+              (i / data.length) * pretradeVolumeCurve.length,
+            );
+            return pretradeVolumeCurve[idx] || 0;
+          })
         : [];
 
     return chartData.map((d, i) => ({
@@ -428,8 +547,8 @@ const PriceChart = React.memo(function PriceChart({
 
     return chartDataWithVolume.map((d) => {
       const date = new Date(d.timestamp);
-      const hh = String(date.getHours()).padStart(2, '0');
-      const mm = String(date.getMinutes()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, "0");
+      const mm = String(date.getMinutes()).padStart(2, "0");
       const sigs = [...(signalByTime.get(`${hh}:${mm}`) || [])];
 
       const dedupedSigs = sigs.filter((sig, idx, arr) => {
@@ -439,7 +558,7 @@ const PriceChart = React.memo(function PriceChart({
             (s) =>
               s.time === sig.time &&
               s.binIdx === sig.binIdx &&
-              Math.abs(s.execPrice - sig.execPrice) < 0.0001
+              Math.abs(s.execPrice - sig.execPrice) < 0.0001,
           )
         );
       });
@@ -461,29 +580,39 @@ const PriceChart = React.memo(function PriceChart({
   }, [data]);
 
   const priceDomain = useMemo(() => {
-    if (!data.length) return ['auto', 'auto'] as any;
+    if (!data.length) return ["auto", "auto"] as any;
 
     // 1. Get base price range from valid candles only
     // We ignore candles that are extreme outliers (more than 50% away from the last candle)
     const lastPrice = data[data.length - 1].candle.close;
-    const candleHighs = data.map(d => d.candle.high).filter(v => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
-    const candleLows = data.map(d => d.candle.low).filter(v => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
+    const candleHighs = data
+      .map((d) => d.candle.high)
+      .filter((v) => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
+    const candleLows = data
+      .map((d) => d.candle.low)
+      .filter((v) => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
 
-    if (candleHighs.length === 0) return ['auto', 'auto'] as any;
+    if (candleHighs.length === 0) return ["auto", "auto"] as any;
 
     let min = Math.min(...candleLows);
     let max = Math.max(...candleHighs);
 
     // 2. Expand domain for VWAP bands, but ONLY if they are close to the price
     if (prefs.bandsVisible) {
-      data.forEach(d => {
+      data.forEach((d) => {
         const currentP = d.candle.close;
         const threshold = currentP * 0.2; // 20% threshold for bands
 
-        if (d.vwapData.upperBand > 0 && Math.abs(d.vwapData.upperBand - currentP) < threshold) {
+        if (
+          d.vwapData.upperBand > 0 &&
+          Math.abs(d.vwapData.upperBand - currentP) < threshold
+        ) {
           max = Math.max(max, d.vwapData.upperBand);
         }
-        if (d.vwapData.lowerBand > 0 && Math.abs(d.vwapData.lowerBand - currentP) < threshold) {
+        if (
+          d.vwapData.lowerBand > 0 &&
+          Math.abs(d.vwapData.lowerBand - currentP) < threshold
+        ) {
           min = Math.min(min, d.vwapData.lowerBand);
         }
       });
@@ -535,13 +664,31 @@ const PriceChart = React.memo(function PriceChart({
             }
           }}
         >
-          <CartesianGrid vertical horizontal strokeDasharray="3 3" stroke="var(--border)" opacity={0.25} />
+          <CartesianGrid
+            vertical
+            horizontal
+            strokeDasharray="3 3"
+            stroke="var(--border)"
+            opacity={0.25}
+          />
 
           <defs>
             <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={defaultPalette.price} stopOpacity={0.35} />
-              <stop offset="70%" stopColor={defaultPalette.price} stopOpacity={0.1} />
-              <stop offset="100%" stopColor={defaultPalette.price} stopOpacity={0.02} />
+              <stop
+                offset="0%"
+                stopColor={defaultPalette.price}
+                stopOpacity={0.35}
+              />
+              <stop
+                offset="70%"
+                stopColor={defaultPalette.price}
+                stopOpacity={0.1}
+              />
+              <stop
+                offset="100%"
+                stopColor={defaultPalette.price}
+                stopOpacity={0.02}
+              />
             </linearGradient>
             <linearGradient id="brushGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -555,22 +702,25 @@ const PriceChart = React.memo(function PriceChart({
             type="category"
             tickFormatter={(value) => {
               const candle = chartDataWithSignals[value];
-              if (!candle) return '';
+              if (!candle) return "";
               const date = new Date(candle.timestamp);
               const timeStr = date.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
+                hour: "2-digit",
+                minute: "2-digit",
                 hour12: false,
               });
               if (isMultiDay) {
-                const dayStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const dayStr = date.toLocaleDateString([], {
+                  month: "short",
+                  day: "numeric",
+                });
                 return `${dayStr} ${timeStr}`;
               }
               return timeStr;
             }}
             stroke="var(--foreground)"
             fontSize={12}
-            tick={{ fill: 'var(--foreground)' }}
+            tick={{ fill: "var(--foreground)" }}
             interval="equidistantPreserveStart"
             minTickGap={60}
           />
@@ -580,7 +730,7 @@ const PriceChart = React.memo(function PriceChart({
             tickFormatter={(value) => value.toFixed(2)}
             stroke="var(--foreground)"
             fontSize={12}
-            tick={{ fill: 'var(--foreground)' }}
+            tick={{ fill: "var(--foreground)" }}
           />
 
           {(volumeCurveVisible || showPretradeInMain) && (
@@ -602,9 +752,9 @@ const PriceChart = React.memo(function PriceChart({
           <Tooltip
             content={<PriceTooltip />}
             cursor={{
-              stroke: 'var(--primary)',
+              stroke: "var(--primary)",
               strokeWidth: 1,
-              strokeDasharray: '3 3',
+              strokeDasharray: "3 3",
               opacity: 0.4,
             }}
             allowEscapeViewBox={{ x: true, y: true }}
@@ -633,12 +783,12 @@ const PriceChart = React.memo(function PriceChart({
               opacity={0.6}
               label={{
                 value: `₹${data[hoveredCandle].candle.close.toFixed(2)}`,
-                position: 'left',
-                fill: 'white',
+                position: "left",
+                fill: "white",
                 fontSize: 10,
                 fontWeight: 700,
-                backgroundColor: 'var(--primary)',
-                padding: '2px 4px',
+                backgroundColor: "var(--primary)",
+                padding: "2px 4px",
               }}
             />
           )}
@@ -647,16 +797,25 @@ const PriceChart = React.memo(function PriceChart({
           {data.length > 0 && (
             <ReferenceLine
               y={data[data.length - 1].candle.close}
-              stroke={data[data.length - 1].candle.close >= data[data.length - 1].candle.open ? '#10b981' : '#ef4444'}
+              stroke={
+                data[data.length - 1].candle.close >=
+                data[data.length - 1].candle.open
+                  ? "#10b981"
+                  : "#ef4444"
+              }
               strokeWidth={1.2}
               strokeDasharray="2 2"
               label={{
                 value: `LAST: ₹${data[data.length - 1].candle.close.toFixed(2)}`,
-                position: 'insideRight',
-                fill: 'white',
+                position: "insideRight",
+                fill: "white",
                 fontSize: 10,
                 fontWeight: 800,
-                backgroundColor: data[data.length - 1].candle.close >= data[data.length - 1].candle.open ? '#10b981' : '#ef4444',
+                backgroundColor:
+                  data[data.length - 1].candle.close >=
+                  data[data.length - 1].candle.open
+                    ? "#10b981"
+                    : "#ef4444",
                 dx: -10,
                 dy: -10,
               }}
@@ -673,11 +832,11 @@ const PriceChart = React.memo(function PriceChart({
               strokeDasharray="5 5"
               label={{
                 value: `₹${price.toFixed(2)}`,
-                position: 'right',
-                fill: '#3b82f6',
+                position: "right",
+                fill: "#3b82f6",
                 fontSize: 10,
-                fontWeight: 'bold',
-                backgroundColor: 'var(--background)',
+                fontWeight: "bold",
+                backgroundColor: "var(--background)",
               }}
             />
           ))}
@@ -692,8 +851,8 @@ const PriceChart = React.memo(function PriceChart({
               opacity={0.5}
               label={{
                 value: data[hoveredCandle].candle.close.toFixed(2),
-                position: 'left',
-                fill: 'var(--foreground)',
+                position: "left",
+                fill: "var(--foreground)",
                 fontSize: 11,
                 offset: 5,
               }}
@@ -701,29 +860,31 @@ const PriceChart = React.memo(function PriceChart({
           )}
 
           {/* Hover volume reference line */}
-          {hoveredCandle !== null && data[hoveredCandle] && volumeCurveVisible && (
-            <ReferenceLine
-              y={data[hoveredCandle].candle.volume}
-              stroke="var(--muted-foreground)"
-              strokeWidth={1}
-              strokeDasharray="3 3"
-              opacity={0.5}
-              yAxisId="volume"
-              label={{
-                value: formatVolume(data[hoveredCandle].candle.volume),
-                position: 'right',
-                fill: 'var(--foreground)',
-                fontSize: 11,
-                offset: 5,
-              }}
-            />
-          )}
+          {hoveredCandle !== null &&
+            data[hoveredCandle] &&
+            volumeCurveVisible && (
+              <ReferenceLine
+                y={data[hoveredCandle].candle.volume}
+                stroke="var(--muted-foreground)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                opacity={0.5}
+                yAxisId="volume"
+                label={{
+                  value: formatVolume(data[hoveredCandle].candle.volume),
+                  position: "right",
+                  fill: "var(--foreground)",
+                  fontSize: 11,
+                  offset: 5,
+                }}
+              />
+            )}
 
           <Legend
             verticalAlign="top"
             height={36}
             iconType="line"
-            wrapperStyle={{ paddingTop: '10px', fontSize: '13px' }}
+            wrapperStyle={{ paddingTop: "10px", fontSize: "13px" }}
           />
 
           {/* VWAP Line */}
@@ -783,10 +944,8 @@ const PriceChart = React.memo(function PriceChart({
             </>
           )}
 
-
-
           {/* Price chart based on type */}
-          {prefs.chartType === 'LINE' ? (
+          {prefs.chartType === "LINE" ? (
             <Line
               type="monotone"
               dataKey="close"
@@ -796,14 +955,14 @@ const PriceChart = React.memo(function PriceChart({
               name="Price"
               isAnimationActive={false}
             />
-          ) : prefs.chartType === 'OHLC' ? (
+          ) : prefs.chartType === "OHLC" ? (
             <Bar
               dataKey="ohlcRange"
               name="Price (OHLC)"
               isAnimationActive={false}
               shape={<OHLCWebShape />}
             />
-          ) : prefs.chartType === 'CANDLESTICK' ? (
+          ) : prefs.chartType === "CANDLESTICK" ? (
             <Bar
               dataKey="ohlcRange"
               name="Price (Candle)"
@@ -829,8 +988,18 @@ const PriceChart = React.memo(function PriceChart({
               dataKey="backendSignalPrice"
               stroke="#22c55e"
               strokeWidth={0}
-              dot={<BackendSignalDot markerType={prefs.signalMarkerType} markerSize={prefs.signalMarkerSize} />}
-              activeDot={<BackendSignalDot markerType={prefs.signalMarkerType} markerSize={prefs.signalMarkerSize} />}
+              dot={
+                <BackendSignalDot
+                  markerType={prefs.signalMarkerType}
+                  markerSize={prefs.signalMarkerSize}
+                />
+              }
+              activeDot={
+                <BackendSignalDot
+                  markerType={prefs.signalMarkerType}
+                  markerSize={prefs.signalMarkerSize}
+                />
+              }
               isAnimationActive={false}
               name="Buy Signal"
               legendType="circle"
@@ -852,28 +1021,46 @@ const PriceChart = React.memo(function PriceChart({
               name="Signal Execution"
               legendType="none"
               connectNulls={false}
-            // This creates a vertical-ish line by drawing from 0 to price if we had a specific vertical line component,
-            // but in ComposedChart we'll use ReferenceLine for better vertical coverage.
+              // This creates a vertical-ish line by drawing from 0 to price if we had a specific vertical line component,
+              // but in ComposedChart we'll use ReferenceLine for better vertical coverage.
             />
           )}
 
           {/* Vertical lines for signals using ReferenceLine for full height */}
-          {prefs.showSignalLines && backendBuySignals.length > 0 && chartDataWithSignals.map((d, i) => (
-            d.backendSignalPrice ? (
-              <ReferenceLine
-                key={`sig-line-${i}`}
-                x={i}
-                stroke="#22c55e"
-                strokeWidth={1}
-                strokeDasharray="3 3"
-                opacity={0.3}
-              />
-            ) : null
-          ))}
+          {prefs.showSignalLines &&
+            backendBuySignals.length > 0 &&
+            chartDataWithSignals.map((d, i) =>
+              d.backendSignalPrice ? (
+                <ReferenceLine
+                  key={`sig-line-${i}`}
+                  x={i}
+                  stroke="#22c55e"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  opacity={0.3}
+                />
+              ) : null,
+            )}
 
           {/* Hidden High/Low for OHLC completeness */}
-          <Line type="monotone" dataKey="high" stroke="#64748b" strokeWidth={1} dot={false} name="High" hide />
-          <Line type="monotone" dataKey="low" stroke="#64748b" strokeWidth={1} dot={false} name="Low" hide />
+          <Line
+            type="monotone"
+            dataKey="high"
+            stroke="#64748b"
+            strokeWidth={1}
+            dot={false}
+            name="High"
+            hide
+          />
+          <Line
+            type="monotone"
+            dataKey="low"
+            stroke="#64748b"
+            strokeWidth={1}
+            dot={false}
+            name="Low"
+            hide
+          />
 
           {/* Volume curves */}
           {volumeCurveVisible && (
@@ -887,7 +1074,7 @@ const PriceChart = React.memo(function PriceChart({
                 {chartDataWithSignals.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.close >= entry.open ? '#22c55e' : '#ef4444'}
+                    fill={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
                     fillOpacity={0.4}
                   />
                 ))}
@@ -932,12 +1119,12 @@ const PriceChart = React.memo(function PriceChart({
             tickFormatter={(value) => {
               const date = new Date(value);
               const timeStr = date.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
+                hour: "2-digit",
+                minute: "2-digit",
                 hour12: false,
               });
               if (isMultiDay) {
-                return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeStr}`;
+                return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${timeStr}`;
               }
               return timeStr;
             }}

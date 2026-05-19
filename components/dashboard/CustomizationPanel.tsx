@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { CustomizationPrefs } from '@/lib/types';
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { CustomizationPrefs } from "@/lib/types";
 
 interface CustomizationPanelProps {
   preferences: CustomizationPrefs;
@@ -19,7 +19,7 @@ function SettingField({
   fullWidth?: boolean;
 }) {
   return (
-    <div className={fullWidth ? 'col-span-2' : 'col-span-1'}>
+    <div className={fullWidth ? "col-span-2" : "col-span-1"}>
       <label className="text-[11px] font-medium text-muted-foreground block mb-1.5 tracking-wide uppercase">
         {label}
       </label>
@@ -65,18 +65,19 @@ export default function CustomizationPanel({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
-
-
       {/* Chart Settings */}
       <div className="border border-border rounded-lg">
         <button
-          onClick={() => toggleSection('chart')}
+          onClick={() => toggleSection("chart")}
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
         >
-          <span className="font-medium text-foreground text-sm">Chart Settings</span>
+          <span className="font-medium text-foreground text-sm">
+            Chart Settings
+          </span>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.chart ? 'rotate-180' : ''
-              }`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${
+              expandedSections.chart ? "rotate-180" : ""
+            }`}
           />
         </button>
 
@@ -94,9 +95,7 @@ export default function CustomizationPanel({
             <SettingField label="Period">
               <select
                 value={preferences.chartPeriod}
-                onChange={(e) =>
-                  handleChange('chartPeriod', e.target.value)
-                }
+                onChange={(e) => handleChange("chartPeriod", e.target.value)}
                 className="
       w-full h-10 px-3
       bg-secondary/60
@@ -115,9 +114,7 @@ export default function CustomizationPanel({
             <SettingField label="Chart Type">
               <select
                 value={preferences.chartType}
-                onChange={(e) =>
-                  handleChange('chartType', e.target.value)
-                }
+                onChange={(e) => handleChange("chartType", e.target.value)}
                 className="
       w-full
       h-10
@@ -145,7 +142,7 @@ export default function CustomizationPanel({
                   type="checkbox"
                   checked={preferences.hoverDetailsVisible}
                   onChange={(e) =>
-                    handleChange('hoverDetailsVisible', e.target.checked)
+                    handleChange("hoverDetailsVisible", e.target.checked)
                   }
                 />
                 Show Hover Details
@@ -159,13 +156,16 @@ export default function CustomizationPanel({
       {false && (
         <div className="border border-border rounded-lg">
           <button
-            onClick={() => toggleSection('vwap')}
+            onClick={() => toggleSection("vwap")}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
           >
-            <span className="font-medium text-foreground text-sm">VWAP Bands</span>
+            <span className="font-medium text-foreground text-sm">
+              VWAP Bands
+            </span>
             <ChevronDown
-              className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.vwap ? 'rotate-180' : ''
-                }`}
+              className={`w-4 h-4 text-muted-foreground transition-transform ${
+                expandedSections.vwap ? "rotate-180" : ""
+              }`}
             />
           </button>
 
@@ -186,7 +186,7 @@ export default function CustomizationPanel({
                     type="checkbox"
                     checked={preferences.vwapVisible}
                     onChange={(e) =>
-                      handleChange('vwapVisible', e.target.checked)
+                      handleChange("vwapVisible", e.target.checked)
                     }
                   />
                   VWAP Line
@@ -196,7 +196,7 @@ export default function CustomizationPanel({
                     type="checkbox"
                     checked={preferences.bandsVisible}
                     onChange={(e) =>
-                      handleChange('bandsVisible', e.target.checked)
+                      handleChange("bandsVisible", e.target.checked)
                     }
                   />
                   Bands
@@ -209,10 +209,7 @@ export default function CustomizationPanel({
                   step="0.1"
                   value={preferences.bandWidth}
                   onChange={(e) =>
-                    handleChange(
-                      'bandWidth',
-                      parseFloat(e.target.value) || 1
-                    )
+                    handleChange("bandWidth", parseFloat(e.target.value) || 1)
                   }
                   className="w-full h-10 px-3 bg-secondary/60 border border-border rounded-md text-sm"
                 />
@@ -227,7 +224,7 @@ export default function CustomizationPanel({
                     type="color"
                     value={preferences.bandColor.line}
                     onChange={(e) =>
-                      handleBandColorChange('line', e.target.value)
+                      handleBandColorChange("line", e.target.value)
                     }
                     className="w-full h-8 rounded cursor-pointer"
                   />
@@ -240,7 +237,7 @@ export default function CustomizationPanel({
                     type="color"
                     value={preferences.bandColor.upper}
                     onChange={(e) =>
-                      handleBandColorChange('upper', e.target.value)
+                      handleBandColorChange("upper", e.target.value)
                     }
                     className="w-full h-8 rounded cursor-pointer"
                   />
@@ -253,7 +250,7 @@ export default function CustomizationPanel({
                     type="color"
                     value={preferences.bandColor.lower}
                     onChange={(e) =>
-                      handleBandColorChange('lower', e.target.value)
+                      handleBandColorChange("lower", e.target.value)
                     }
                     className="w-full h-8 rounded cursor-pointer"
                   />
@@ -261,7 +258,9 @@ export default function CustomizationPanel({
               </div>
 
               <div>
-                <label className="text-xs text-muted-foreground">Fill Opacity</label>
+                <label className="text-xs text-muted-foreground">
+                  Fill Opacity
+                </label>
                 <input
                   type="range"
                   min="0"
@@ -269,7 +268,10 @@ export default function CustomizationPanel({
                   step="0.1"
                   value={preferences.bandColor.fillOpacity}
                   onChange={(e) =>
-                    handleBandColorChange('fillOpacity', parseFloat(e.target.value))
+                    handleBandColorChange(
+                      "fillOpacity",
+                      parseFloat(e.target.value),
+                    )
                   }
                   className="w-full mt-1"
                 />
@@ -282,13 +284,14 @@ export default function CustomizationPanel({
       {/* Volume Settings */}
       <div className="border border-border rounded-lg">
         <button
-          onClick={() => toggleSection('volume')}
+          onClick={() => toggleSection("volume")}
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
         >
           <span className="font-medium text-foreground text-sm">Volume</span>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.volume ? 'rotate-180' : ''
-              }`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${
+              expandedSections.volume ? "rotate-180" : ""
+            }`}
           />
         </button>
 
@@ -309,7 +312,7 @@ export default function CustomizationPanel({
                   type="checkbox"
                   checked={preferences.volumeVisible}
                   onChange={(e) =>
-                    handleChange('volumeVisible', e.target.checked)
+                    handleChange("volumeVisible", e.target.checked)
                   }
                 />
                 Show Volume
@@ -319,7 +322,7 @@ export default function CustomizationPanel({
                   type="checkbox"
                   checked={preferences.volumeBinsVisible}
                   onChange={(e) =>
-                    handleChange('volumeBinsVisible', e.target.checked)
+                    handleChange("volumeBinsVisible", e.target.checked)
                   }
                 />
                 Volume Bins
@@ -331,8 +334,8 @@ export default function CustomizationPanel({
                 value={preferences.numVolumeBins}
                 onChange={(e) =>
                   handleChange(
-                    'numVolumeBins',
-                    parseInt(e.target.value) as 5 | 10 | 20 | 50
+                    "numVolumeBins",
+                    parseInt(e.target.value) as 5 | 10 | 20 | 50,
                   )
                 }
                 className="
@@ -352,9 +355,7 @@ export default function CustomizationPanel({
             <SettingField label="Coloring">
               <select
                 value={preferences.volumeColoring}
-                onChange={(e) =>
-                  handleChange('volumeColoring', e.target.value)
-                }
+                onChange={(e) => handleChange("volumeColoring", e.target.value)}
                 className="
       w-full h-10 px-3
       bg-secondary/60
@@ -374,13 +375,16 @@ export default function CustomizationPanel({
       {/* Signal Settings */}
       <div className="border border-border rounded-lg">
         <button
-          onClick={() => toggleSection('signals')}
+          onClick={() => toggleSection("signals")}
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
         >
-          <span className="font-medium text-foreground text-sm">Buy Signals</span>
+          <span className="font-medium text-foreground text-sm">
+            Buy Signals
+          </span>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.signals ? 'rotate-180' : ''
-              }`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${
+              expandedSections.signals ? "rotate-180" : ""
+            }`}
           />
         </button>
 
@@ -401,7 +405,7 @@ export default function CustomizationPanel({
                   type="checkbox"
                   checked={preferences.signalsVisible}
                   onChange={(e) =>
-                    handleChange('signalsVisible', e.target.checked)
+                    handleChange("signalsVisible", e.target.checked)
                   }
                 />
                 Show Signals
@@ -412,7 +416,7 @@ export default function CustomizationPanel({
                   type="checkbox"
                   checked={preferences.showSignalLines}
                   onChange={(e) =>
-                    handleChange('showSignalLines', e.target.checked)
+                    handleChange("showSignalLines", e.target.checked)
                   }
                 />
                 Vertical Signal Lines
@@ -423,7 +427,7 @@ export default function CustomizationPanel({
               <select
                 value={preferences.signalMarkerType}
                 onChange={(e) =>
-                  handleChange('signalMarkerType', e.target.value)
+                  handleChange("signalMarkerType", e.target.value)
                 }
                 className="
       w-full h-10 px-3
@@ -439,7 +443,9 @@ export default function CustomizationPanel({
             </SettingField>
 
             <div>
-              <label className="text-xs text-muted-foreground">Marker Size</label>
+              <label className="text-xs text-muted-foreground">
+                Marker Size
+              </label>
               <input
                 type="range"
                 min="4"
@@ -447,7 +453,7 @@ export default function CustomizationPanel({
                 step="2"
                 value={preferences.signalMarkerSize}
                 onChange={(e) =>
-                  handleChange('signalMarkerSize', parseInt(e.target.value))
+                  handleChange("signalMarkerSize", parseInt(e.target.value))
                 }
                 className="w-full mt-1"
               />
@@ -459,10 +465,7 @@ export default function CustomizationPanel({
                 step="0.05"
                 value={preferences.buyThreshold}
                 onChange={(e) =>
-                  handleChange(
-                    'buyThreshold',
-                    parseFloat(e.target.value) || 0
-                  )
+                  handleChange("buyThreshold", parseFloat(e.target.value) || 0)
                 }
                 className="
       w-full h-10 px-3
@@ -480,8 +483,8 @@ export default function CustomizationPanel({
                 value={preferences.minVolumeThreshold}
                 onChange={(e) =>
                   handleChange(
-                    'minVolumeThreshold',
-                    parseInt(e.target.value) || 0
+                    "minVolumeThreshold",
+                    parseInt(e.target.value) || 0,
                   )
                 }
                 className="
@@ -503,8 +506,8 @@ export default function CustomizationPanel({
                   value={preferences.signalStrengthThreshold}
                   onChange={(e) =>
                     handleChange(
-                      'signalStrengthThreshold',
-                      parseInt(e.target.value)
+                      "signalStrengthThreshold",
+                      parseInt(e.target.value),
                     )
                   }
                   className="flex-1"

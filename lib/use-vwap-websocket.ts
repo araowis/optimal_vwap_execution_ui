@@ -3,7 +3,7 @@
  * Handles live signals, calibration updates, and regime changes
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   WSMessage,
   WSConnectedMessage,
@@ -11,9 +11,10 @@ import {
   WSCalibrationMessage,
   WSRegimeMessage,
   VWAPWebSocketHandlers,
-} from './vwap-server-types';
+} from "./vwap-server-types";
 
-const VWAP_WS_URL = process.env.NEXT_PUBLIC_VWAP_WS_URL || 'ws://localhost:5000/rws/signals';
+const VWAP_WS_URL =
+  process.env.NEXT_PUBLIC_VWAP_WS_URL || "ws://localhost:5000/rws/signals";
 
 interface UseVwapWebSocketOptions {
   autoConnect?: boolean;
@@ -34,7 +35,7 @@ interface UseVwapWebSocketReturn {
 }
 
 export function useVwapWebSocket(
-  options: UseVwapWebSocketOptions = {}
+  options: UseVwapWebSocketOptions = {},
 ): UseVwapWebSocketReturn {
   const {
     autoConnect = true,
@@ -45,7 +46,8 @@ export function useVwapWebSocket(
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [lastSignal, setLastSignal] = useState<WSSignalMessage | null>(null);
-  const [lastCalibration, setLastCalibration] = useState<WSCalibrationMessage | null>(null);
+  const [lastCalibration, setLastCalibration] =
+    useState<WSCalibrationMessage | null>(null);
   const [lastRegime, setLastRegime] = useState<WSRegimeMessage | null>(null);
   const [signalHistory, setSignalHistory] = useState<WSSignalMessage[]>([]);
   const [error, setError] = useState<Error | null>(null);
@@ -92,11 +94,11 @@ export function useVwapWebSocket(
           const message: WSMessage = JSON.parse(event.data);
 
           switch (message.type) {
-            case 'connected':
+            case "connected":
               // Connection acknowledgment
               break;
 
-            case 'signal': {
+            case "signal": {
               const signal = message as WSSignalMessage;
               setLastSignal(signal);
               setSignalHistory((prev) => [...prev.slice(-99), signal]); // Keep last 100 signals
@@ -104,14 +106,14 @@ export function useVwapWebSocket(
               break;
             }
 
-            case 'calibration': {
+            case "calibration": {
               const calibration = message as WSCalibrationMessage;
               setLastCalibration(calibration);
               handlersRef.current.onCalibration?.(calibration);
               break;
             }
 
-            case 'regime': {
+            case "regime": {
               const regime = message as WSRegimeMessage;
               setLastRegime(regime);
               handlersRef.current.onRegime?.(regime);
@@ -119,7 +121,7 @@ export function useVwapWebSocket(
             }
 
             default:
-              console.warn('Unknown WebSocket message type:', message);
+              console.warn("Unknown WebSocket message type:", message);
           }
         } catch (e) {
           const err = new Error(`Failed to parse WebSocket message: ${e}`);
@@ -129,7 +131,7 @@ export function useVwapWebSocket(
       };
 
       ws.onerror = (event) => {
-        const err = new Error('WebSocket error occurred');
+        const err = new Error("WebSocket error occurred");
         setError(err);
         handlersRef.current.onError?.(err);
       };

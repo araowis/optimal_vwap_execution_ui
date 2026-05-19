@@ -1,46 +1,47 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import { CustomizationPrefs } from '@/lib/types';
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { CustomizationPrefs } from "@/lib/types";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
-  const [customizationPrefs, setCustomizationPrefs] = useState<CustomizationPrefs>({
-    chartPeriod: 'MINUTE',
-    chartType: 'CANDLESTICK',
-    vwapVisible: true,
-    bandsVisible: true,
-    bandWidth: 1.5,
-    bandColor: {
-      line: '#ef4444',
-      upper: '#22c55e',
-      lower: '#22c55e',
-      fillOpacity: 0.1,
-    },
-    volumeVisible: true,
-    volumeBinsVisible: true,
-    numVolumeBins: 10,
-    volumeColoring: 'BY_PRICE',
-    signalsVisible: true,
-    signalMarkerSize: 8,
-    signalMarkerType: 'PIN',
-    showSignalLines: false,
-    signalStrengthThreshold: 30,
-    buyThreshold: 0.5,
-    minVolumeThreshold: 0,
-    theme: 'LIGHT',
-    hoverDetailsVisible: true,
-  });
+  const [customizationPrefs, setCustomizationPrefs] =
+    useState<CustomizationPrefs>({
+      chartPeriod: "MINUTE",
+      chartType: "CANDLESTICK",
+      vwapVisible: true,
+      bandsVisible: true,
+      bandWidth: 1.5,
+      bandColor: {
+        line: "#ef4444",
+        upper: "#22c55e",
+        lower: "#22c55e",
+        fillOpacity: 0.1,
+      },
+      volumeVisible: true,
+      volumeBinsVisible: true,
+      numVolumeBins: 10,
+      volumeColoring: "BY_PRICE",
+      signalsVisible: true,
+      signalMarkerSize: 8,
+      signalMarkerType: "PIN",
+      showSignalLines: false,
+      signalStrengthThreshold: 30,
+      buyThreshold: 0.5,
+      minVolumeThreshold: 0,
+      theme: "LIGHT",
+      hoverDetailsVisible: true,
+    });
 
   useEffect(() => {
     // Load preferences from localStorage
-    const saved = localStorage.getItem('vwap-dashboard-prefs');
+    const saved = localStorage.getItem("vwap-dashboard-prefs");
     if (saved) {
       try {
         setCustomizationPrefs(JSON.parse(saved));
       } catch (e) {
-        console.warn('Failed to load preferences');
+        console.warn("Failed to load preferences");
       }
     }
     setIsLoading(false);
@@ -48,7 +49,7 @@ export default function Home() {
 
   const handlePreferencesChange = (newPrefs: CustomizationPrefs) => {
     setCustomizationPrefs(newPrefs);
-    localStorage.setItem('vwap-dashboard-prefs', JSON.stringify(newPrefs));
+    localStorage.setItem("vwap-dashboard-prefs", JSON.stringify(newPrefs));
   };
 
   if (isLoading) {
@@ -63,7 +64,7 @@ export default function Home() {
   }
 
   return (
-    <div className={customizationPrefs.theme === 'DARK' ? 'dark' : ''}>
+    <div className={customizationPrefs.theme === "DARK" ? "dark" : ""}>
       <DashboardLayout
         customizationPrefs={customizationPrefs}
         onPreferencesChange={handlePreferencesChange}

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface UpstoxFeedStreamPriceUpdate {
   ltp: number;
@@ -13,7 +13,7 @@ export interface UpstoxFeedStreamPriceUpdate {
 interface UseUpstoxFeedStreamProps {
   accessToken: string | null;
   instrumentKey: string | null;
-  mode?: 'ltpc' | 'full' | 'option_greeks' | 'full_d30';
+  mode?: "ltpc" | "full" | "option_greeks" | "full_d30";
   enabled: boolean;
   onUpdate?: (data: UpstoxFeedStreamPriceUpdate) => void;
 }
@@ -36,13 +36,20 @@ type StreamEntry = {
 const streamCache = new Map<string, StreamEntry>();
 
 function makeId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `sub_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
 }
 
-function getStreamKey(accessToken: string, instrumentKey: string, mode: string) {
+function getStreamKey(
+  accessToken: string,
+  instrumentKey: string,
+  mode: string,
+) {
   return `${accessToken}::${instrumentKey}::${mode}`;
 }
 
@@ -71,7 +78,7 @@ async function ensureStreamRunning(params: {
   entry: StreamEntry;
   accessToken: string;
   instrumentKey: string;
-  mode: 'ltpc' | 'full' | 'option_greeks' | 'full_d30';
+  mode: "ltpc" | "full" | "option_greeks" | "full_d30";
 }) {
   const { entry, accessToken, instrumentKey, mode } = params;
   if (entry.running) return;
@@ -88,23 +95,23 @@ async function ensureStreamRunning(params: {
     const url = `/api/upstox/market-data-feed/stream?instrument_key=${encodeURIComponent(instrumentKey)}&mode=${encodeURIComponent(mode)}`;
 
     const resp = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        accept: 'application/x-ndjson',
+        accept: "application/x-ndjson",
         Authorization: `Bearer ${accessToken}`,
       },
       signal: ac.signal,
-      cache: 'no-store',
+      cache: "no-store",
     });
 
     if (!resp.ok || !resp.body) {
-      const text = await resp.text().catch(() => '');
+      const text = await resp.text().catch(() => "");
       throw new Error(text || `Stream request failed (${resp.status})`);
     }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '';
+    let buffer = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -113,7 +120,7 @@ async function ensureStreamRunning(params: {
       buffer += decoder.decode(value, { stream: true });
 
       let idx: number;
-      while ((idx = buffer.indexOf('\n')) >= 0) {
+      while ((idx = buffer.indexOf("\n")) >= 0) {
         const line = buffer.slice(0, idx).trim();
         buffer = buffer.slice(idx + 1);
         if (!line) continue;
@@ -125,14 +132,14 @@ async function ensureStreamRunning(params: {
           continue;
         }
 
-        if (obj?.type === 'connection_status') {
-          if (obj.status === 'open') {
+        if (obj?.type === "connection_status") {
+          if (obj.status === "open") {
             entry.isConnected = true;
             entry.error = null;
             broadcastStatus(entry);
           }
-          if (obj.status === 'error') {
-            entry.error = String(obj.error || 'Connection error');
+          if (obj.status === "error") {
+            entry.error = String(obj.error || "Connection error");
             entry.isConnected = false;
             broadcastStatus(entry);
           }
@@ -149,7 +156,8 @@ async function ensureStreamRunning(params: {
     }
   } catch (e) {
     if (ac.signal.aborted) return;
-    entry.error = e instanceof Error ? e.message : 'Failed to connect to feed stream';
+    entry.error =
+      e instanceof Error ? e.message : "Failed to connect to feed stream";
     entry.isConnected = false;
     broadcastStatus(entry);
   } finally {
@@ -171,17 +179,27 @@ function stopStreamIfUnused(entry: StreamEntry) {
   streamCache.delete(entry.key);
 }
 
-function mapDecodedToUpdate(decoded: any, instrumentKey: string): UpstoxFeedStreamPriceUpdate | null {
-  if (!decoded || typeof decoded !== 'object') return null;
+function mapDecodedToUpdate(
+  decoded: any,
+  instrumentKey: string,
+): UpstoxFeedStreamPriceUpdate | null {
+  if (!decoded || typeof decoded !== "object") return null;
 
-  if (decoded.type && String(decoded.type).toLowerCase().includes('market_info')) {
+  if (
+    decoded.type &&
+    String(decoded.type).toLowerCase().includes("market_info")
+  ) {
     return null;
   }
 
   const feeds = decoded.feeds;
-  if (!feeds || typeof feeds !== 'object') return null;
+  if (!feeds || typeof feeds !== "object") return null;
 
-  const feed = feeds[instrumentKey] ?? (Object.keys(feeds).length === 1 ? feeds[Object.keys(feeds)[0]] : undefined);
+  const feed =
+    feeds[instrumentKey] ??
+    (Object.keys(feeds).length === 1
+      ? feeds[Object.keys(feeds)[0]]
+      : undefined);
   if (!feed) return null;
 
   const ff = feed.fullFeed?.marketFF || feed.fullFeed?.indexFF;
@@ -195,14 +213,32 @@ function mapDecodedToUpdate(decoded: any, instrumentKey: string): UpstoxFeedStre
   const quotes: any[] | undefined = ff?.marketLevel?.bidAskQuote;
   const bids = Array.isArray(quotes)
     ? quotes
-        .map((q) => ({ price: Number(q.bidP ?? 0), quantity: Number(q.bidQ ?? 0) }))
-        .filter((b) => Number.isFinite(b.price) && b.price > 0 && Number.isFinite(b.quantity) && b.quantity > 0)
+        .map((q) => ({
+          price: Number(q.bidP ?? 0),
+          quantity: Number(q.bidQ ?? 0),
+        }))
+        .filter(
+          (b) =>
+            Number.isFinite(b.price) &&
+            b.price > 0 &&
+            Number.isFinite(b.quantity) &&
+            b.quantity > 0,
+        )
     : undefined;
 
   const asks = Array.isArray(quotes)
     ? quotes
-        .map((q) => ({ price: Number(q.askP ?? 0), quantity: Number(q.askQ ?? 0) }))
-        .filter((a) => Number.isFinite(a.price) && a.price > 0 && Number.isFinite(a.quantity) && a.quantity > 0)
+        .map((q) => ({
+          price: Number(q.askP ?? 0),
+          quantity: Number(q.askQ ?? 0),
+        }))
+        .filter(
+          (a) =>
+            Number.isFinite(a.price) &&
+            a.price > 0 &&
+            Number.isFinite(a.quantity) &&
+            a.quantity > 0,
+        )
     : undefined;
 
   return {
@@ -217,7 +253,7 @@ function mapDecodedToUpdate(decoded: any, instrumentKey: string): UpstoxFeedStre
 export function useUpstoxFeedStream({
   accessToken,
   instrumentKey,
-  mode = 'full',
+  mode = "full",
   enabled,
   onUpdate,
 }: UseUpstoxFeedStreamProps) {

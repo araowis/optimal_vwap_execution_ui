@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Play, Calendar } from 'lucide-react';
-import { StrategyParams } from '@/lib/types';
+import { useState } from "react";
+import { Play, Calendar } from "lucide-react";
+import { StrategyParams } from "@/lib/types";
 
 interface ParametersPanelProps {
   params: StrategyParams;
   onParamsChange: (params: StrategyParams) => void;
   onRunBacktest: (params: StrategyParams) => void;
-  onRunRealtime?: (params: { totalQty: number; nBins: number; lambda: number }) => void;
+  onRunRealtime?: (params: {
+    totalQty: number;
+    nBins: number;
+    lambda: number;
+  }) => void;
   isRunning: boolean;
   progress: number;
   message: string;
-  onModeChange?: (mode: 'backtest' | 'realtime') => void;
+  onModeChange?: (mode: "backtest" | "realtime") => void;
   selectedInstrumentKey?: string | null;
   importContext?: {
     instrumentKey: string;
@@ -35,9 +39,9 @@ export default function ParametersPanel({
   importContext,
 }: ParametersPanelProps) {
   const [localParams, setLocalParams] = useState<StrategyParams>(params);
-  const [runMode, setRunMode] = useState<'backtest' | 'realtime'>('backtest');
+  const [runMode, setRunMode] = useState<"backtest" | "realtime">("backtest");
 
-  const handleModeChange = (newMode: 'backtest' | 'realtime') => {
+  const handleModeChange = (newMode: "backtest" | "realtime") => {
     setRunMode(newMode);
     if (onModeChange) {
       onModeChange(newMode);
@@ -47,11 +51,11 @@ export default function ParametersPanel({
   const handleChange = (field: keyof StrategyParams, value: any) => {
     const updated = { ...localParams, [field]: value };
 
-    if (field === 'totalQuantity' && localParams.numTranches > 0) {
+    if (field === "totalQuantity" && localParams.numTranches > 0) {
       updated.trancheSize = Math.floor(value / localParams.numTranches);
     }
 
-    if (field === 'numTranches' && localParams.totalQuantity > 0) {
+    if (field === "numTranches" && localParams.totalQuantity > 0) {
       updated.trancheSize = Math.floor(localParams.totalQuantity / value);
     }
 
@@ -59,14 +63,13 @@ export default function ParametersPanel({
     onParamsChange(updated);
   };
 
-
   const handleRunBacktest = () => {
     onRunBacktest(localParams);
   };
 
   const handleRunRealtime = () => {
     if (!selectedInstrumentKey) {
-      alert('Please select a stock from the watchlist first');
+      alert("Please select a stock from the watchlist first");
       return;
     }
     if (onRunRealtime) {
@@ -81,20 +84,28 @@ export default function ParametersPanel({
   return (
     <div className="flex-1 overflow-y-auto p-4 flex flex-col">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-foreground">Strategy Parameters</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          Strategy Parameters
+        </h2>
       </div>
 
       <div className="space-y-4 flex-1 overflow-y-auto">
-        {runMode === 'realtime' ? (
+        {runMode === "realtime" ? (
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-foreground">Market Open Calibration</h3>
+            <h3 className="text-sm font-medium text-foreground">
+              Market Open Calibration
+            </h3>
 
             <div>
-              <label className="text-xs text-muted-foreground">Total Quantity</label>
+              <label className="text-xs text-muted-foreground">
+                Total Quantity
+              </label>
               <input
                 type="number"
                 value={localParams.totalQuantity}
-                onChange={(e) => handleChange('totalQuantity', parseInt(e.target.value) || 0)}
+                onChange={(e) =>
+                  handleChange("totalQuantity", parseInt(e.target.value) || 0)
+                }
                 className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
               />
             </div>
@@ -105,17 +116,23 @@ export default function ParametersPanel({
                 <input
                   type="number"
                   value={localParams.numTranches}
-                  onChange={(e) => handleChange('numTranches', parseInt(e.target.value) || 1)}
+                  onChange={(e) =>
+                    handleChange("numTranches", parseInt(e.target.value) || 1)
+                  }
                   className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">Risk Aversion (λ)</label>
+                <label className="text-xs text-muted-foreground">
+                  Risk Aversion (λ)
+                </label>
                 <input
                   type="number"
                   step="0.1"
                   value={localParams.lambda ?? 17.0}
-                  onChange={(e) => handleChange('lambda', parseFloat(e.target.value) || 0)}
+                  onChange={(e) =>
+                    handleChange("lambda", parseFloat(e.target.value) || 0)
+                  }
                   className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                 />
               </div>
@@ -123,8 +140,12 @@ export default function ParametersPanel({
 
             {selectedInstrumentKey && (
               <div className="p-2 bg-secondary rounded-lg">
-                <span className="text-xs text-muted-foreground">Selected Instrument:</span>
-                <p className="text-xs font-medium text-foreground break-all">{selectedInstrumentKey}</p>
+                <span className="text-xs text-muted-foreground">
+                  Selected Instrument:
+                </span>
+                <p className="text-xs font-medium text-foreground break-all">
+                  {selectedInstrumentKey}
+                </p>
               </div>
             )}
 
@@ -143,11 +164,15 @@ export default function ParametersPanel({
               <h3 className="text-sm font-medium text-foreground">Execution</h3>
 
               <div>
-                <label className="text-xs text-muted-foreground">Total Quantity</label>
+                <label className="text-xs text-muted-foreground">
+                  Total Quantity
+                </label>
                 <input
                   type="number"
                   value={localParams.totalQuantity}
-                  onChange={(e) => handleChange('totalQuantity', parseInt(e.target.value) || 0)}
+                  onChange={(e) =>
+                    handleChange("totalQuantity", parseInt(e.target.value) || 0)
+                  }
                   className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                 />
               </div>
@@ -159,23 +184,28 @@ export default function ParametersPanel({
                     type="number"
                     min={1}
                     value={localParams.numTranches}
-                    onChange={(e) => handleChange('numTranches', parseInt(e.target.value) || 1)}
+                    onChange={(e) =>
+                      handleChange("numTranches", parseInt(e.target.value) || 1)
+                    }
                     className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Risk Aversion (λ)</label>
+                  <label className="text-xs text-muted-foreground">
+                    Risk Aversion (λ)
+                  </label>
                   <input
                     type="number"
                     step="0.1"
                     min={0}
                     value={localParams.lambda ?? 17.0}
-                    onChange={(e) => handleChange('lambda', parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      handleChange("lambda", parseFloat(e.target.value) || 0)
+                    }
                     className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm mt-1"
                   />
                 </div>
               </div>
-
             </div>
 
             {/* ── Backtest Context (from Import section) ──────────────── */}
@@ -199,7 +229,9 @@ export default function ParametersPanel({
               ) : (
                 <div className="p-2.5 bg-secondary/50 border border-dashed border-border rounded-lg">
                   <p className="text-xs text-muted-foreground">
-                    Select a stock and date range in <strong>Import from Upstox</strong> above to configure the backtest target
+                    Select a stock and date range in{" "}
+                    <strong>Import from Upstox</strong> above to configure the
+                    backtest target
                   </p>
                 </div>
               )}
@@ -227,7 +259,9 @@ export default function ParametersPanel({
           <div className="flex gap-2">
             <select
               value={runMode}
-              onChange={(e) => handleModeChange(e.target.value as 'backtest' | 'realtime')}
+              onChange={(e) =>
+                handleModeChange(e.target.value as "backtest" | "realtime")
+              }
               className="px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm font-medium"
               disabled={isRunning}
             >
@@ -235,24 +269,22 @@ export default function ParametersPanel({
               <option value="realtime">Realtime</option>
             </select>
             <button
-              onClick={runMode === 'realtime' ? handleRunRealtime : handleRunBacktest}
-              disabled={
-                runMode === 'backtest' &&
-                !importContext?.instrumentKey
+              onClick={
+                runMode === "realtime" ? handleRunRealtime : handleRunBacktest
               }
+              disabled={runMode === "backtest" && !importContext?.instrumentKey}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${
-                runMode === 'realtime'
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-foreground text-background'
+                runMode === "realtime"
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-foreground text-background"
               }`}
             >
               <Play className="w-4 h-4" />
-              Run {runMode === 'realtime' ? 'Realtime' : 'Backtest'}
+              Run {runMode === "realtime" ? "Realtime" : "Backtest"}
             </button>
           </div>
         )}
       </div>
-
     </div>
   );
 }

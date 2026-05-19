@@ -1,11 +1,21 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Sliders, Plus, Check, Pencil, Trash2 } from 'lucide-react';
-import { RuntimeTuningProfile, RuntimeTuningProfileRequest } from '@/lib/vwap-server-types';
-import { cn } from '@/lib/utils';
-import RuntimeTuningProfileModal from './RuntimeTuningProfileModal';
-import { toast } from 'sonner';
+import { useState, useRef, useEffect } from "react";
+import {
+  ChevronDown,
+  Sliders,
+  Plus,
+  Check,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import {
+  RuntimeTuningProfile,
+  RuntimeTuningProfileRequest,
+} from "@/lib/vwap-server-types";
+import { cn } from "@/lib/utils";
+import RuntimeTuningProfileModal from "./RuntimeTuningProfileModal";
+import { toast } from "sonner";
 
 interface RuntimeTuningProfileDropdownProps {
   profiles: RuntimeTuningProfile[];
@@ -24,17 +34,21 @@ export default function RuntimeTuningProfileDropdown({
 }: RuntimeTuningProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<RuntimeTuningProfile | null>(null);
+  const [editingProfile, setEditingProfile] =
+    useState<RuntimeTuningProfile | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const activeProfile = profiles.find((p) => p.id === selectedProfileId);
@@ -45,9 +59,9 @@ export default function RuntimeTuningProfileDropdown({
 
   const handleDeleteConfirm = (id: number, name: string) => {
     toast(`Delete "${name}"?`, {
-      description: 'This profile will be permanently removed.',
-      action: { label: 'Delete', onClick: () => onDelete?.(id) },
-      cancel: { label: 'Cancel', onClick: () => { } },
+      description: "This profile will be permanently removed.",
+      action: { label: "Delete", onClick: () => onDelete?.(id) },
+      cancel: { label: "Cancel", onClick: () => {} },
     });
   };
 
@@ -57,10 +71,10 @@ export default function RuntimeTuningProfileDropdown({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex items-center gap-2.5 px-3 py-2 border rounded-lg transition-all min-w-[200px] justify-between group',
+          "flex items-center gap-2.5 px-3 py-2 border rounded-lg transition-all min-w-[200px] justify-between group",
           isOpen
-            ? 'bg-secondary/60 border-border shadow-sm'
-            : 'bg-secondary/30 border-border/50 hover:bg-secondary/50 hover:border-border'
+            ? "bg-secondary/60 border-border shadow-sm"
+            : "bg-secondary/30 border-border/50 hover:bg-secondary/50 hover:border-border",
         )}
       >
         <div className="flex items-center gap-2.5 min-w-0">
@@ -72,17 +86,27 @@ export default function RuntimeTuningProfileDropdown({
               Tuning Profile
             </p>
             <p className="text-[11px] font-bold text-foreground truncate leading-tight mt-0.5 font-mono">
-              {activeProfile ? activeProfile.profileName : <span className="text-muted-foreground font-normal">None selected</span>}
+              {activeProfile ? (
+                activeProfile.profileName
+              ) : (
+                <span className="text-muted-foreground font-normal">
+                  None selected
+                </span>
+              )}
             </p>
           </div>
         </div>
-        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground transition-transform flex-shrink-0', isOpen && 'rotate-180')} />
+        <ChevronDown
+          className={cn(
+            "w-3.5 h-3.5 text-muted-foreground transition-transform flex-shrink-0",
+            isOpen && "rotate-180",
+          )}
+        />
       </button>
 
       {/* Dropdown panel */}
       {isOpen && (
         <div className="absolute top-full left-0 mt-1.5 w-[280px] bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-left">
-
           {/* Header */}
           <div className="px-3 pt-3 pb-2">
             <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold px-1">
@@ -94,20 +118,26 @@ export default function RuntimeTuningProfileDropdown({
           <div className="px-2 pb-1">
             <button
               onClick={() => {
-                onSelect({ id: undefined as any, profileName: '', description: '' });
+                onSelect({
+                  id: undefined as any,
+                  profileName: "",
+                  description: "",
+                });
                 setIsOpen(false);
               }}
               className={cn(
-                'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all',
+                "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all",
                 !selectedProfileId
-                  ? 'bg-secondary/60 text-foreground'
-                  : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground'
+                  ? "bg-secondary/60 text-foreground"
+                  : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
               )}
             >
-              <div className={cn(
-                'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                !selectedProfileId ? 'bg-primary' : 'bg-border'
-              )} />
+              <div
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                  !selectedProfileId ? "bg-primary" : "bg-border",
+                )}
+              />
               <span className="text-[11px] flex-1 italic">No profile</span>
               {!selectedProfileId && <Check className="w-3 h-3 text-primary" />}
             </button>
@@ -128,21 +158,28 @@ export default function RuntimeTuningProfileDropdown({
               <div
                 key={profile.id}
                 className={cn(
-                  'group/row flex items-center gap-1.5 w-full rounded-lg transition-all relative',
+                  "group/row flex items-center gap-1.5 w-full rounded-lg transition-all relative",
                   selectedProfileId === profile.id
-                    ? 'bg-primary/8'
-                    : 'hover:bg-secondary/40'
+                    ? "bg-primary/8"
+                    : "hover:bg-secondary/40",
                 )}
               >
                 <button
-                  onClick={() => { onSelect(profile); setIsOpen(false); }}
+                  onClick={() => {
+                    onSelect(profile);
+                    setIsOpen(false);
+                  }}
                   className="flex-1 min-w-0 text-left px-2.5 py-2"
                 >
                   <div className="flex items-center gap-2">
-                    <div className={cn(
-                      'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                      selectedProfileId === profile.id ? 'bg-primary' : 'bg-border'
-                    )} />
+                    <div
+                      className={cn(
+                        "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                        selectedProfileId === profile.id
+                          ? "bg-primary"
+                          : "bg-border",
+                      )}
+                    />
                     <p className="text-[11px] font-bold text-foreground font-mono truncate">
                       {profile.profileName}
                     </p>
@@ -175,7 +212,10 @@ export default function RuntimeTuningProfileDropdown({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteConfirm(profile.id!, profile.profileName || '');
+                        handleDeleteConfirm(
+                          profile.id!,
+                          profile.profileName || "",
+                        );
                       }}
                       className="p-1 hover:bg-destructive/10 hover:text-destructive rounded-md transition-colors text-muted-foreground"
                       title="Delete"
@@ -190,7 +230,9 @@ export default function RuntimeTuningProfileDropdown({
             {profiles.length === 0 && (
               <div className="py-5 text-center">
                 <Sliders className="w-6 h-6 mx-auto text-muted-foreground/20 mb-2" />
-                <p className="text-[10px] text-muted-foreground/50">No profiles saved yet</p>
+                <p className="text-[10px] text-muted-foreground/50">
+                  No profiles saved yet
+                </p>
               </div>
             )}
           </div>
@@ -214,7 +256,10 @@ export default function RuntimeTuningProfileDropdown({
 
       <RuntimeTuningProfileModal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setEditingProfile(null); }}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingProfile(null);
+        }}
         onSave={handleSave}
         onDelete={onDelete}
         editingProfile={editingProfile}

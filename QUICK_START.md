@@ -3,6 +3,7 @@
 ## 🚀 Get Started in 5 Minutes
 
 ### 1. **Start the Dashboard**
+
 ```bash
 pnpm install    # Install dependencies
 pnpm dev        # Start development server
@@ -10,23 +11,29 @@ pnpm dev        # Start development server
 ```
 
 ### 2. **Load Data**
+
 - Click the **upload area** in the left panel
 - Select your CSV file or use `public/sample-data.csv`
 - Wait for chart to populate
 
 ### 3. **Set Parameters**
+
 In the left panel, configure:
+
 - **Total Quantity**: 100,000 shares
 - **Tranches**: 5 parts
 - **VWAP Deviation**: 0.5%
 
 ### 4. **Run Backtest**
+
 - Click **"Run Backtest"** button
 - Watch animated progress
 - View results on the right
 
 ### 5. **Customize View**
+
 In the right panel:
+
 - Adjust **VWAP Band Width**
 - Change **Chart Period** (1min, 5min, etc.)
 - Toggle **Volume Bins**
@@ -36,31 +43,34 @@ In the right panel:
 
 ## 📊 Key Metrics at a Glance
 
-| Metric | Meaning |
-|--------|---------|
-| **Execution Price** | Average price your order filled at |
-| **VWAP** | Volume-weighted average price during execution |
-| **Price Improvement** | How much better/worse than VWAP |
-| **Total Cost** | All fees and transaction costs |
-| **VWAP Participation** | % of execution at target VWAP |
-| **Sharpe Ratio** | Risk-adjusted performance |
-| **Win Rate** | % of profitable trades |
+| Metric                 | Meaning                                        |
+| ---------------------- | ---------------------------------------------- |
+| **Execution Price**    | Average price your order filled at             |
+| **VWAP**               | Volume-weighted average price during execution |
+| **Price Improvement**  | How much better/worse than VWAP                |
+| **Total Cost**         | All fees and transaction costs                 |
+| **VWAP Participation** | % of execution at target VWAP                  |
+| **Sharpe Ratio**       | Risk-adjusted performance                      |
+| **Win Rate**           | % of profitable trades                         |
 
 ---
 
 ## 🎨 Customization Quick Tips
 
 ### VWAP Bands
+
 - **Band Width**: Increase for wider bands (1-3 sigma)
 - **Colors**: Click color boxes to change
 - **Opacity**: Adjust transparency with slider
 
 ### Volume Visualization
+
 - **Number of Bins**: 5, 10, 20, or 50 price levels
 - **Coloring**: Monochrome, gradient, or by price
 - **Show Bins**: Toggle on hover
 
 ### Chart Period
+
 - **1 Minute**: Most detailed, granular view
 - **5 Minute**: Balance detail and clarity
 - **Daily**: High-level overview
@@ -70,12 +80,14 @@ In the right panel:
 ## 📝 CSV Format
 
 Your data file must have these columns:
+
 ```
 timestamp,open,high,low,close,volume,oi
 2026-01-01 09:15:00+05:30,4090,4103.9,4088.3,4102.3,8121,0
 ```
 
 **Column Requirements:**
+
 - `timestamp`: ISO 8601 format with timezone
 - `open, high, low, close`: Price values (float)
 - `volume`: Trading volume (integer)
@@ -86,12 +98,14 @@ timestamp,open,high,low,close,volume,oi
 ## 🔧 Strategy Parameters Explained
 
 ### Execution Settings
+
 - **Total Quantity**: Shares to buy
 - **Number of Tranches**: Split order into N parts
 - **Tranche Size**: Auto-calculated shares per part
 - **Order Type**: LIMIT vs MARKET
 
 ### Risk Management
+
 - **Max Slippage %**: Stop if price moves too much
 - **VWAP Deviation %**: Buy signal threshold (e.g., 0.5% below VWAP)
 - **Min Volume Threshold**: Minimum volume required
@@ -101,15 +115,19 @@ timestamp,open,high,low,close,volume,oi
 ## 📈 Understanding Results
 
 ### Execution Summary (Bottom)
+
 Shows overall execution quality with key metrics
 
 ### Benchmarking Panel (Right)
+
 - **Cost Breakdown**: Where your money went
 - **Performance Metrics**: Sharpe, win rate, drawdown
 - **Execution Summary**: Fill %, costs, efficiency
 
 ### Chart Hover
+
 Hover over any candle to see:
+
 - Time, OHLCV data
 - VWAP value at that point
 - Price deviation from VWAP
@@ -143,6 +161,7 @@ Hover over any candle to see:
 ## 🔗 Integration with Java Backend
 
 ### Setup
+
 1. Ensure Java backend is running on `http://localhost:8080`
 2. Add environment variables:
    ```
@@ -152,6 +171,7 @@ Hover over any candle to see:
 3. Backtest will use backend when running
 
 ### Upstox Integration
+
 1. Get API credentials from Upstox
 2. Connect in "Data Upload" panel
 3. Fetch real-time data automatically
@@ -161,16 +181,19 @@ Hover over any candle to see:
 ## 🐛 Troubleshooting
 
 ### Chart Not Showing
+
 - Check CSV format is correct
 - Ensure timestamps are valid
 - Clear browser cache
 
 ### Backtest Not Running
+
 - Verify CSV data uploaded
 - Check all parameters are valid
 - Look at browser console for errors
 
 ### Slow Performance
+
 - Reduce volume bins (use 5 or 10)
 - Change chart period to 5min or daily
 - Close other browser tabs
@@ -188,15 +211,18 @@ Hover over any candle to see:
 ## 🚢 Deployment
 
 ### Quick Deploy to Vercel
+
 ```bash
 git init
 git add .
 git commit -m "Initial"
 git push -u origin main
 ```
+
 Then visit vercel.com to connect and deploy
 
 ### Docker Deploy
+
 ```bash
 docker build -t vwap-dashboard .
 docker run -p 3000:3000 vwap-dashboard
@@ -207,6 +233,7 @@ docker run -p 3000:3000 vwap-dashboard
 ## 📞 Support
 
 **Need Help?**
+
 1. Check browser console (F12) for errors
 2. Review documentation files
 3. Verify CSV format
@@ -227,4 +254,4 @@ docker run -p 3000:3000 vwap-dashboard
 
 **Happy Trading! 📈**
 
-*VWAP Dashboard v1.0.0 - Professional Trading Platform*
+_VWAP Dashboard v1.0.0 - Professional Trading Platform_

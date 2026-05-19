@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ShieldAlert, Plus, Check, Pencil, Lock, Eye } from 'lucide-react';
-import { RiskProfileResponse } from '@/lib/vwap-server-types';
-import { cn } from '@/lib/utils';
-import RiskProfileModal from './RiskProfileModal';
-import DataViewModal from './DataViewModal';
+import { useState, useRef, useEffect } from "react";
+import {
+  ChevronDown,
+  ShieldAlert,
+  Plus,
+  Check,
+  Pencil,
+  Lock,
+  Eye,
+} from "lucide-react";
+import { RiskProfileResponse } from "@/lib/vwap-server-types";
+import { cn } from "@/lib/utils";
+import RiskProfileModal from "./RiskProfileModal";
+import DataViewModal from "./DataViewModal";
 
 interface RiskProfileDropdownProps {
   activeProfileId?: string;
@@ -15,7 +23,7 @@ interface RiskProfileDropdownProps {
   onDeleteProfile?: (profileId: string) => void;
 }
 
-const PROTECTED_PROFILES = ['CONSERVATIVE', 'MODERATE', 'AGGRESSIVE'];
+const PROTECTED_PROFILES = ["CONSERVATIVE", "MODERATE", "AGGRESSIVE"];
 
 export default function RiskProfileDropdown({
   activeProfileId,
@@ -26,21 +34,26 @@ export default function RiskProfileDropdown({
 }: RiskProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<RiskProfileResponse | null>(null);
-  const [viewingProfile, setViewingProfile] = useState<RiskProfileResponse | null>(null);
+  const [editingProfile, setEditingProfile] =
+    useState<RiskProfileResponse | null>(null);
+  const [viewingProfile, setViewingProfile] =
+    useState<RiskProfileResponse | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const activeProfile = profiles.find(p => p.profileId === activeProfileId);
+  const activeProfile = profiles.find((p) => p.profileId === activeProfileId);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -57,28 +70,34 @@ export default function RiskProfileDropdown({
               Risk Profile
             </p>
             <p className="text-xs font-bold text-foreground truncate leading-tight mt-0.5">
-              {activeProfile ? activeProfile.displayName : 'Select Profile'}
+              {activeProfile ? activeProfile.displayName : "Select Profile"}
             </p>
           </div>
         </div>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        <ChevronDown
+          className={cn(
+            "w-4 h-4 text-muted-foreground transition-transform",
+            isOpen && "rotate-180",
+          )}
+        />
       </button>
 
       {isOpen && (
         <div className="absolute top-full right-0 mt-2 w-[280px] bg-card border border-border rounded-sm shadow-md z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
-          
           <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
             {profiles.map((profile) => {
-              const isProtected = PROTECTED_PROFILES.includes(profile.profileId || '');
-              
+              const isProtected = PROTECTED_PROFILES.includes(
+                profile.profileId || "",
+              );
+
               return (
-                <div 
+                <div
                   key={profile.profileId}
                   className={cn(
                     "group/row flex items-center gap-3 w-full px-2 py-2 text-left transition-all relative rounded-sm",
-                    activeProfileId === profile.profileId 
-                      ? "bg-primary/5 border-l-2 border-l-primary" 
-                      : "hover:bg-secondary/50 border-l-2 border-l-transparent"
+                    activeProfileId === profile.profileId
+                      ? "bg-primary/5 border-l-2 border-l-primary"
+                      : "hover:bg-secondary/50 border-l-2 border-l-transparent",
                   )}
                 >
                   <button
@@ -92,7 +111,9 @@ export default function RiskProfileDropdown({
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-bold text-foreground tracking-tight flex items-center gap-2">
                           {profile.displayName}
-                          {isProtected && <Lock className="w-3 h-3 text-muted-foreground" />}
+                          {isProtected && (
+                            <Lock className="w-3 h-3 text-muted-foreground" />
+                          )}
                         </p>
                         {activeProfileId === profile.profileId && (
                           <Check className="w-3.5 h-3.5 text-primary" />
@@ -150,12 +171,12 @@ export default function RiskProfileDropdown({
         </div>
       )}
 
-      <RiskProfileModal 
-        isOpen={isModalOpen} 
+      <RiskProfileModal
+        isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setEditingProfile(null);
-        }} 
+        }}
         onSave={onSaveProfile}
         onDelete={onDeleteProfile}
         editingProfile={editingProfile}
@@ -164,7 +185,7 @@ export default function RiskProfileDropdown({
       <DataViewModal
         isOpen={!!viewingProfile}
         onClose={() => setViewingProfile(null)}
-        title={viewingProfile ? `Raw Data: ${viewingProfile.displayName}` : ''}
+        title={viewingProfile ? `Raw Data: ${viewingProfile.displayName}` : ""}
         data={viewingProfile}
       />
     </div>

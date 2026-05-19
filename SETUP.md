@@ -11,6 +11,7 @@
 ### Installation
 
 1. **Install Dependencies**
+
    ```bash
    pnpm install
    # or
@@ -18,6 +19,7 @@
    ```
 
 2. **Run Development Server**
+
    ```bash
    pnpm dev
    # or
@@ -109,10 +111,10 @@ Edit `app/globals.css` to customize colors:
 
 ```css
 :root {
-  --primary: oklch(0.55 0.2 40);      /* Primary brand color */
-  --secondary: oklch(0.92 0.01 100);  /* Secondary color */
-  --background: oklch(0.98 0.001 0);  /* Background */
-  --foreground: oklch(0.15 0 0);      /* Text color */
+  --primary: oklch(0.55 0.2 40); /* Primary brand color */
+  --secondary: oklch(0.92 0.01 100); /* Secondary color */
+  --background: oklch(0.98 0.001 0); /* Background */
+  --foreground: oklch(0.15 0 0); /* Text color */
 }
 
 .dark {
@@ -126,6 +128,7 @@ Edit `app/globals.css` to customize colors:
 ## Building for Production
 
 ### Build Command
+
 ```bash
 pnpm build
 # or
@@ -133,6 +136,7 @@ npm run build
 ```
 
 ### Run Production Build
+
 ```bash
 pnpm start
 # or
@@ -144,6 +148,7 @@ npm start
 ### Vercel (Recommended)
 
 1. **Push to GitHub**
+
    ```bash
    git init
    git add .
@@ -178,6 +183,7 @@ CMD ["pnpm", "start"]
 ```
 
 Build and run:
+
 ```bash
 docker build -t vwap-dashboard .
 docker run -p 3000:3000 vwap-dashboard
@@ -214,6 +220,7 @@ GET    /health                      - Health check
 ### Request/Response Examples
 
 **Submit Backtest:**
+
 ```javascript
 POST /api/backtest/submit
 {
@@ -249,6 +256,7 @@ Response:
 ```
 
 **Get Progress:**
+
 ```
 GET /api/backtest/progress/job_12345
 
@@ -284,26 +292,31 @@ Response:
 ### Common Issues
 
 **1. Chart Not Rendering**
+
 - Clear browser cache
 - Check browser console for errors
 - Ensure CSV data is valid
 
 **2. Slow Performance**
+
 - Reduce number of volume bins
 - Increase chart period (use 5min instead of 1min)
 - Check browser memory usage
 
 **3. Backtest Not Starting**
+
 - Verify CSV data uploaded successfully
 - Check parameters are valid
 - Check browser console for errors
 
 **4. WebSocket Connection Failed**
+
 - Verify backend URL is correct
 - Check CORS configuration on backend
 - Ensure WebSocket port is open
 
 **5. CSV Upload Fails**
+
 - Verify CSV format (see VWAP_DASHBOARD_README.md)
 - Check file size isn't too large
 - Ensure all required columns present
@@ -335,6 +348,7 @@ console.log("[v0] State updated:", newState);
 ## API Documentation
 
 See `lib/backend-integration.ts` for:
+
 - `BackendClient` class for API communication
 - `pollBacktestProgress` for polling-based updates
 - WebSocket integration examples
@@ -342,6 +356,7 @@ See `lib/backend-integration.ts` for:
 ## Support & Troubleshooting
 
 For issues:
+
 1. Check console logs for error messages
 2. Review VWAP_DASHBOARD_README.md for feature details
 3. Verify backend connectivity if using Java integration

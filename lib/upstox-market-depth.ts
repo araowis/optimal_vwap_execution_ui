@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
-import { useUpstoxFeedStream } from './use-upstox-feed-stream';
+import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import { useUpstoxFeedStream } from "./use-upstox-feed-stream";
 
 interface MarketDepthData {
   instrumentKey: string;
@@ -26,7 +26,7 @@ interface MarketDepthData {
 interface UseMarketDepthProps {
   accessToken: string | null;
   instrumentKey: string;
-  mode?: 'full' | 'full_d30';
+  mode?: "full" | "full_d30";
   enabled?: boolean;
   pollInterval?: number;
   wsConnected?: boolean;
@@ -35,7 +35,7 @@ interface UseMarketDepthProps {
 export function useMarketDepth({
   accessToken,
   instrumentKey,
-  mode = 'full',
+  mode = "full",
   enabled = true,
   pollInterval = 2500,
   wsConnected = false,
@@ -47,32 +47,33 @@ export function useMarketDepth({
 
   const useStream = enabled && !!accessToken && !!instrumentKey && wsConnected;
 
-  const { isConnected: streamConnected, error: streamError } = useUpstoxFeedStream({
-    accessToken,
-    instrumentKey,
-    enabled: useStream,
-    mode: mode === 'full_d30' ? 'full_d30' : 'full',
-    onUpdate: (update) => {
-      setDepthData((prev) => {
-        const bids = update.bids || prev?.bids || [];
-        const asks = update.asks || prev?.asks || [];
-        const next: MarketDepthData = {
-          instrumentKey,
-          bids,
-          asks,
-          ltp: update.ltp,
-          timestamp: update.timestamp,
-          volume: update.volume,
-          ohlc: prev?.ohlc,
-          averagePrice: prev?.averagePrice,
-          netChange: prev?.netChange,
-          totalBuyQuantity: prev?.totalBuyQuantity,
-          totalSellQuantity: prev?.totalSellQuantity,
-        };
-        return next;
-      });
-    },
-  });
+  const { isConnected: streamConnected, error: streamError } =
+    useUpstoxFeedStream({
+      accessToken,
+      instrumentKey,
+      enabled: useStream,
+      mode: mode === "full_d30" ? "full_d30" : "full",
+      onUpdate: (update) => {
+        setDepthData((prev) => {
+          const bids = update.bids || prev?.bids || [];
+          const asks = update.asks || prev?.asks || [];
+          const next: MarketDepthData = {
+            instrumentKey,
+            bids,
+            asks,
+            ltp: update.ltp,
+            timestamp: update.timestamp,
+            volume: update.volume,
+            ohlc: prev?.ohlc,
+            averagePrice: prev?.averagePrice,
+            netChange: prev?.netChange,
+            totalBuyQuantity: prev?.totalBuyQuantity,
+            totalSellQuantity: prev?.totalSellQuantity,
+          };
+          return next;
+        });
+      },
+    });
 
   const fetchMarketDepth = useCallback(async () => {
     if (!accessToken || !instrumentKey || !enabled) return;
@@ -82,19 +83,19 @@ export function useMarketDepth({
       setError(null);
       setIsConnected(true);
       setIsRefreshing(true);
-      localStorage.setItem('websocket-connected', 'true');
+      localStorage.setItem("websocket-connected", "true");
 
       const response = await fetch(
         `/api/upstox/market-quote?instrument_key=${encodeURIComponent(instrumentKey)}&access_token=${encodeURIComponent(accessToken)}`,
         {
-          method: 'GET',
-        }
+          method: "GET",
+        },
       );
 
       const result = await response.json();
       // console.log('Market quote result:', result);
 
-      if (result.status === 'success' && result.data) {
+      if (result.status === "success" && result.data) {
         // The API returns data keyed by symbol (e.g. NSE_EQ:RELIANCE)
         // while we might be searching by token (e.g. NSE_EQ|INE002A01018).
         // Iterate through values to find the one with the matching instrument_token.
@@ -102,7 +103,7 @@ export function useMarketDepth({
 
         if (!instrumentData) {
           instrumentData = Object.values(result.data).find(
-            (item: any) => item.instrument_token === instrumentKey
+            (item: any) => item.instrument_token === instrumentKey,
           );
         }
 
@@ -113,8 +114,16 @@ export function useMarketDepth({
         }
 
         if (instrumentData) {
-          const bids: Array<{ price: number; quantity: number; orders: number }> = [];
-          const asks: Array<{ price: number; quantity: number; orders: number }> = [];
+          const bids: Array<{
+            price: number;
+            quantity: number;
+            orders: number;
+          }> = [];
+          const asks: Array<{
+            price: number;
+            quantity: number;
+            orders: number;
+          }> = [];
 
           // Parse depth data from REST API response
           if (instrumentData.depth) {
@@ -151,12 +160,14 @@ export function useMarketDepth({
             asks,
             ltp: instrumentData.last_price || 0,
             timestamp: Date.now(),
-            ohlc: instrumentData.ohlc ? {
-              open: instrumentData.ohlc.open,
-              high: instrumentData.ohlc.high,
-              low: instrumentData.ohlc.low,
-              close: instrumentData.ohlc.close,
-            } : undefined,
+            ohlc: instrumentData.ohlc
+              ? {
+                  open: instrumentData.ohlc.open,
+                  high: instrumentData.ohlc.high,
+                  low: instrumentData.ohlc.low,
+                  close: instrumentData.ohlc.close,
+                }
+              : undefined,
             volume: instrumentData.volume,
             averagePrice: instrumentData.average_price,
             netChange: instrumentData.net_change,
@@ -167,17 +178,18 @@ export function useMarketDepth({
           setDepthData(newData);
         }
       } else {
-        throw new Error(result.message || 'Failed to fetch market quote');
+        throw new Error(result.message || "Failed to fetch market quote");
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch market quote';
-      console.error('Error fetching market quote:', err);
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to fetch market quote";
+      console.error("Error fetching market quote:", err);
       setError(errorMsg);
       toast.error("Connection Error", {
         description: errorMsg,
       });
       setIsConnected(false);
-      localStorage.setItem('websocket-connected', 'false');
+      localStorage.setItem("websocket-connected", "false");
     } finally {
       setIsRefreshing(false);
     }
@@ -186,7 +198,7 @@ export function useMarketDepth({
   useEffect(() => {
     if (!enabled) {
       setIsConnected(false);
-      localStorage.setItem('websocket-connected', 'false');
+      localStorage.setItem("websocket-connected", "false");
       return;
     }
 
@@ -207,9 +219,16 @@ export function useMarketDepth({
     return () => {
       clearInterval(interval);
       setIsConnected(false);
-      localStorage.setItem('websocket-connected', 'false');
+      localStorage.setItem("websocket-connected", "false");
     };
-  }, [fetchMarketDepth, pollInterval, enabled, useStream, streamConnected, streamError]);
+  }, [
+    fetchMarketDepth,
+    pollInterval,
+    enabled,
+    useStream,
+    streamConnected,
+    streamError,
+  ]);
 
   return {
     depthData,
