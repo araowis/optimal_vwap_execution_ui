@@ -24,7 +24,7 @@ function BackendSignalDot(props: any) {
   if (!payload?.backendSignalPrice) return null;
 
   const r = markerSize;
-  
+
   if (markerType === 'DOT') {
     return (
       <g>
@@ -178,27 +178,27 @@ function CandlestickShape(props: any) {
 
   const { open, close, high, low } = payload;
   const isUp = close >= open;
-  
+
   // Premium Color Palette
   const upColor = '#22c55e';      // Vibrant Green
   const upBorder = '#166534';     // Dark Green Border
   const downColor = '#ef4444';    // Vibrant Red
   const downBorder = '#991b1b';   // Dark Red Border
-  
+
   const bodyColor = isUp ? upColor : downColor;
   const borderColor = isUp ? upBorder : downBorder;
   const wickColor = isUp ? upColor : downColor;
-  
+
   // y is the coordinate of the higher value in the range [low, high]
   // height is the pixel distance between low and high
   const range = Math.max(0.00001, high - low);
   const pixelPerUnit = height / range;
-  
+
   const yOpen = y + (high - open) * pixelPerUnit;
   const yClose = y + (high - close) * pixelPerUnit;
   const yHigh = y;
   const yLow = y + height;
-  
+
   const centerX = x + width / 2;
   const candleWidth = Math.max(3, width * 0.75); // Slightly wider
   const candleX = x + (width - candleWidth) / 2;
@@ -236,15 +236,15 @@ function OHLCWebShape(props: any) {
   if (!payload) return null;
 
   const { open, close, high, low, wickColor } = payload;
-  
+
   const range = high - low;
   const pixelPerUnit = range === 0 ? 0 : height / range;
-  
+
   const yOpen = y + (high - open) * pixelPerUnit;
   const yClose = y + (high - close) * pixelPerUnit;
   const yHigh = y;
   const yLow = y + height;
-  
+
   const centerX = x + width / 2;
   const tickWidth = width * 0.35;
 
@@ -376,15 +376,15 @@ const PriceChart = React.memo(function PriceChart({
   // We can do this in the chart by using the YAxis scale, but Recharts doesn't expose it easily.
   // Instead, we'll use a dummy Bar and let Recharts pass the coordinates if we use multiple bars,
   // or we can just use the raw values and a "trick" with the ComposedChart.
-  
+
   // Actually, the most reliable way in Recharts is to use a Bar with a custom shape 
   // where we pass the scale through props if we can, or we calculate it.
   // But wait, Recharts' Bar component passes `x`, `y`, `width`, `height`. 
   // If we want multiple Y coordinates, we have a problem.
-  
+
   // WORKAROUND: In Recharts, if you have a Bar with dataKey="high" and another with dataKey="low",
   // you get those coordinates. But we want one component to draw everything.
-  
+
   // Let's use the payload and the YAxis scale.
   // Since we don't have the scale here, we'll use the "Bar" trick:
   // We'll pass the OHLC values and use them in the shape.
@@ -404,9 +404,9 @@ const PriceChart = React.memo(function PriceChart({
     const pretradeValue =
       pretradeVolumeCurve.length > 0
         ? chartData.map((_, i) => {
-            const idx = Math.floor((i / data.length) * pretradeVolumeCurve.length);
-            return pretradeVolumeCurve[idx] || 0;
-          })
+          const idx = Math.floor((i / data.length) * pretradeVolumeCurve.length);
+          return pretradeVolumeCurve[idx] || 0;
+        })
         : [];
 
     return chartData.map((d, i) => ({
@@ -431,24 +431,26 @@ const PriceChart = React.memo(function PriceChart({
       const hh = String(date.getHours()).padStart(2, '0');
       const mm = String(date.getMinutes()).padStart(2, '0');
       const sigs = [...(signalByTime.get(`${hh}:${mm}`) || [])];
-      
-      // Merge frontend signal if it exists and matches thresholds
-      if (d.buySignal) {
-        sigs.push({
-          time: `${hh}:${mm}`,
-          execPrice: d.buySignal.price,
-          executedQty: 0, // Frontend detected, not executed
-          cumTarget: 0,
-          xStar: 0,
-          binIdx: -1, // Use -1 to distinguish frontend signals
-        });
-      }
+
+      const dedupedSigs = sigs.filter((sig, idx, arr) => {
+        return (
+          idx ===
+          arr.findIndex(
+            (s) =>
+              s.time === sig.time &&
+              s.binIdx === sig.binIdx &&
+              Math.abs(s.execPrice - sig.execPrice) < 0.0001
+          )
+        );
+      });
 
       return {
         ...d,
         // average execPrice for the dot position if multiple exist
-        backendSignalPrice: sigs.length ? sigs[sigs.length - 1].execPrice : null,
-        backendSignalMetaList: sigs,
+        backendSignalPrice: dedupedSigs.length
+          ? dedupedSigs[dedupedSigs.length - 1].execPrice
+          : null,
+        backendSignalMetaList: dedupedSigs,
       };
     });
   }, [chartDataWithVolume, backendBuySignals]);
@@ -460,24 +462,24 @@ const PriceChart = React.memo(function PriceChart({
 
   const priceDomain = useMemo(() => {
     if (!data.length) return ['auto', 'auto'] as any;
-    
+
     // 1. Get base price range from valid candles only
     // We ignore candles that are extreme outliers (more than 50% away from the last candle)
     const lastPrice = data[data.length - 1].candle.close;
     const candleHighs = data.map(d => d.candle.high).filter(v => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
     const candleLows = data.map(d => d.candle.low).filter(v => v > 0 && Math.abs(v - lastPrice) < lastPrice * 0.5);
-    
+
     if (candleHighs.length === 0) return ['auto', 'auto'] as any;
-    
+
     let min = Math.min(...candleLows);
     let max = Math.max(...candleHighs);
-    
+
     // 2. Expand domain for VWAP bands, but ONLY if they are close to the price
     if (prefs.bandsVisible) {
       data.forEach(d => {
         const currentP = d.candle.close;
         const threshold = currentP * 0.2; // 20% threshold for bands
-        
+
         if (d.vwapData.upperBand > 0 && Math.abs(d.vwapData.upperBand - currentP) < threshold) {
           max = Math.max(max, d.vwapData.upperBand);
         }
@@ -489,12 +491,12 @@ const PriceChart = React.memo(function PriceChart({
 
     const range = max - min;
     const padding = range * 0.02; // 2% padding
-    
+
     if (range === 0) {
       const pad = Math.max(0.1, Math.abs(min) * 0.01);
       return [min - pad, max + pad] as [number, number];
     }
-    
+
     return [min - padding, max + padding] as [number, number];
   }, [data, prefs.bandsVisible]);
 
@@ -850,23 +852,23 @@ const PriceChart = React.memo(function PriceChart({
               name="Signal Execution"
               legendType="none"
               connectNulls={false}
-              // This creates a vertical-ish line by drawing from 0 to price if we had a specific vertical line component,
-              // but in ComposedChart we'll use ReferenceLine for better vertical coverage.
+            // This creates a vertical-ish line by drawing from 0 to price if we had a specific vertical line component,
+            // but in ComposedChart we'll use ReferenceLine for better vertical coverage.
             />
           )}
 
           {/* Vertical lines for signals using ReferenceLine for full height */}
           {prefs.showSignalLines && backendBuySignals.length > 0 && chartDataWithSignals.map((d, i) => (
-             d.backendSignalPrice ? (
-               <ReferenceLine
-                 key={`sig-line-${i}`}
-                 x={i}
-                 stroke="#22c55e"
-                 strokeWidth={1}
-                 strokeDasharray="3 3"
-                 opacity={0.3}
-               />
-             ) : null
+            d.backendSignalPrice ? (
+              <ReferenceLine
+                key={`sig-line-${i}`}
+                x={i}
+                stroke="#22c55e"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                opacity={0.3}
+              />
+            ) : null
           ))}
 
           {/* Hidden High/Low for OHLC completeness */}
@@ -883,9 +885,9 @@ const PriceChart = React.memo(function PriceChart({
                 isAnimationActive={false}
               >
                 {chartDataWithSignals.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.close >= entry.open ? '#22c55e' : '#ef4444'} 
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.close >= entry.open ? '#22c55e' : '#ef4444'}
                     fillOpacity={0.4}
                   />
                 ))}
