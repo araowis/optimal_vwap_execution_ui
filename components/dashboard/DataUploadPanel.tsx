@@ -14,6 +14,8 @@ import { Candle } from "@/lib/types";
 import UpstoxConfigDialog from "./UpstoxConfigDialog";
 import MarketDepth from "./MarketDepth";
 import { vwapServerService } from "@/lib/vwap-server-service";
+import { addInstrument } from "@/lib/watchlist-service";
+import { useWatchlistStore } from "@/stores/watchlist-store";
 
 interface DataUploadPanelProps {
   onDataUpload: (data: Candle[], logo?: string, name?: string) => void;
@@ -40,6 +42,7 @@ interface Instrument {
   instrumentType: string;
   lotSize: string;
 }
+
 
 const highlightMatch = (text: string, query: string) => {
   if (!query || !text) return text;
@@ -73,6 +76,10 @@ export default function DataUploadPanel({
   watchlist: propsWatchlist,
   onWatchlistChange,
 }: DataUploadPanelProps) {
+  const {
+  watchlists,
+  fetchWatchlists,
+} = useWatchlistStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -381,18 +388,63 @@ export default function DataUploadPanel({
     }, 300);
   };
 
-  const addToWatchlist = (instrument: any) => {
-    if (
-      !watchlist.find(
-        (item) => item.instrument_key === instrument.instrument_key,
-      )
-    ) {
-      setWatchlist([...watchlist, instrument]);
+  const addToWatchlist = async (instrument: any) => {
+  try {
+    const targetWatchlist =
+      watchlists?.[0];
+
+    if (!targetWatchlist) {
+      console.error(
+        "No backend watchlist available"
+      );
+      return;
     }
+
+    await addInstrument(
+      selectedClient?.id || "CLIENT_1",
+      targetWatchlist.watchlistId,
+      {
+        instrumentKey:
+          instrument.instrument_key,
+
+        tradingSymbol:
+          instrument.trading_symbol,
+
+        name:
+          instrument.name ||
+          instrument.trading_symbol,
+
+        exchange:
+          instrument.exchange || "NSE",
+
+        instrumentType:
+          instrument.instrument_type ||
+          "EQ",
+
+        lotSize: String(
+          instrument.lot_size || 1
+        ),
+
+        upsertIfAbsent: true,
+      }
+    );
+
+    await fetchWatchlists(
+      selectedClient?.id || "CLIENT_1"
+    );
+
     setWatchlistSearchQuery("");
+
     setWatchlistSuggestions([]);
+
     setShowWatchlistSuggestions(false);
-  };
+  } catch (error) {
+    console.error(
+      "Failed to add instrument",
+      error
+    );
+  }
+};
 
   const removeFromWatchlist = (instrumentKey: string) => {
     setWatchlist(
