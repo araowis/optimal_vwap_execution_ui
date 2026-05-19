@@ -68,7 +68,13 @@ export default function DashboardLayout({
   const [backTestProgress, setBackTestProgress] = useState(0);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationMessage, setCalibrationMessage] = useState('');
-  const [realtimePriceUpdate, setRealtimePriceUpdate] = useState<{ ltp: number; timestamp: number; volume?: number } | undefined>(undefined);
+  const [realtimePriceUpdate, setRealtimePriceUpdate] =
+  useState<{
+    ltp: number;
+    timestamp: number;
+    volume?: number;
+    vwap?: number;
+  } | undefined>(undefined);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
 
   // Client Management State
@@ -498,13 +504,22 @@ export default function DashboardLayout({
         const compositeKey = `${msg.clientId}::${msg.instrument}`;
 
         const newSignal: BackendBuySignal = {
-          time: msg.marketTime.substring(0, 5),
-          execPrice: msg.ltp,
-          executedQty: msg.qty,
-          cumTarget: msg.cumTarget,
-          xStar: msg.xStar,
-          binIdx: msg.binIdx,
-        };
+  time: msg.marketTime.substring(0, 5),
+
+  execPrice: msg.ltp,
+
+  executedQty: msg.qty,
+
+  cumTarget: msg.cumTarget,
+
+  xStar: msg.xStar,
+
+  binIdx: msg.binIdx,
+
+  // tNorm: msg.tNorm, // focus here if buy signals send these two via ws then turn these on... Also turn them on in types.ts
+
+  // qtyToBuy: msg.qtyToBuy,
+};
 
         setSignalsMap(prev => {
           const updatedSignals = [...(prev[compositeKey] || []), newSignal];
@@ -1095,6 +1110,7 @@ useEffect(() => {
 />
 
                   <DataUploadPanel
+                    clientId={selectedClient?.id || ""}
                     onDataUpload={handleDataUpload}
                     mode={mode as 'backtest' | 'realtime'}
                     onWatchlistStockSelect={handleWatchlistStockSelect}
@@ -1108,8 +1124,8 @@ useEffect(() => {
                         // Use selectedWatchlistStock logo if available, otherwise leave blank
                       }
                     }}
-                    watchlist={selectedClient?.watchlist || []}
-                    onWatchlistChange={handleWatchlistChange}
+                    // watchlist={selectedClient?.watchlist || []}
+                    // onWatchlistChange={handleWatchlistChange}
                   />
                   <ParametersPanel
                     params={strategyParams}

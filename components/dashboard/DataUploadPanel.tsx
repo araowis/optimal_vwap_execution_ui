@@ -6,8 +6,8 @@ import {
   AlertCircle,
   Search,
   Calendar,
-  CheckCircle,
-  XCircle,
+  // CheckCircle,
+  // XCircle,
 } from "lucide-react";
 import { parseCSV, parseCSVStreaming } from "@/lib/data-parser";
 import { Candle } from "@/lib/types";
@@ -18,6 +18,7 @@ import { addInstrument } from "@/lib/watchlist-service";
 import { useWatchlistStore } from "@/stores/watchlist-store";
 
 interface DataUploadPanelProps {
+  clientId: string;
   onDataUpload: (data: Candle[], logo?: string, name?: string) => void;
   mode?: "backtest" | "realtime";
   onWatchlistStockSelect?: (stock: any) => void;
@@ -30,8 +31,8 @@ interface DataUploadPanelProps {
     startDate: string;
     endDate: string;
   }) => void;
-  watchlist?: any[];
-  onWatchlistChange?: (watchlist: any[]) => void;
+  // watchlist?: any[];
+  // onWatchlistChange?: (watchlist: any[]) => void;
 }
 
 interface Instrument {
@@ -67,14 +68,15 @@ const highlightMatch = (text: string, query: string) => {
 };
 
 export default function DataUploadPanel({
+  clientId,
   onDataUpload,
   mode = "backtest",
   onWatchlistStockSelect,
   onUpstoxTokenChange,
   wsConnected = false,
   onImportContextChange,
-  watchlist: propsWatchlist,
-  onWatchlistChange,
+  // watchlist: propsWatchlist,
+  // onWatchlistChange,
 }: DataUploadPanelProps) {
   const {
   watchlists,
@@ -105,29 +107,46 @@ export default function DataUploadPanel({
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Watchlist state for realtime mode
-  const [localWatchlist, setLocalWatchlist] = useState<any[]>([]);
-  const watchlist = propsWatchlist || localWatchlist;
-  const setWatchlist = (newWatchlist: any[]) => {
-    if (onWatchlistChange) onWatchlistChange(newWatchlist);
-    else setLocalWatchlist(newWatchlist);
-  };
+  // const [localWatchlist, setLocalWatchlist] = useState<any[]>([]);
+  // const watchlist = propsWatchlist || localWatchlist;
+  // const setWatchlist = (newWatchlist: any[]) => {
+  //   if (onWatchlistChange) onWatchlistChange(newWatchlist);
+  //   else setLocalWatchlist(newWatchlist);
+  // };
 
-  const [watchlistPrices, setWatchlistPrices] = useState<
-    Record<string, { ltp: number; change: number; changePercent: number }>
-  >({});
-  const [selectedWatchlistStock, setSelectedWatchlistStock] =
-    useState<any>(null);
+  // const [watchlistPrices, setWatchlistPrices] = useState<
+  //   Record<string, { ltp: number; change: number; changePercent: number }>
+  // >({});
+  // const [selectedWatchlistStock, setSelectedWatchlistStock] =
+  //   useState<any>(null);
   const [watchlistSearchQuery, setWatchlistSearchQuery] = useState("");
+  const [
+  selectedTargetWatchlist,
+  setSelectedTargetWatchlist,
+] = useState("");
   const [watchlistSuggestions, setWatchlistSuggestions] = useState<any[]>([]);
   const [showWatchlistSuggestions, setShowWatchlistSuggestions] =
     useState(false);
   const watchlistSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
-  const [calibratedInstruments, setCalibratedInstruments] = useState<
-    Set<string>
-  >(new Set());
+  // const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+  //   null,
+  // );
+  // const [calibratedInstruments, setCalibratedInstruments] = useState<
+  //   Set<string>
+  // >(new Set());
+  useEffect(() => {
+  if (
+    watchlists.length > 0 &&
+    !selectedTargetWatchlist
+  ) {
+    setSelectedTargetWatchlist(
+      watchlists[0].watchlistId
+    );
+  }
+}, [
+  watchlists,
+  selectedTargetWatchlist,
+]);
 
   useEffect(() => {
     const saved = localStorage.getItem("upstox-access-token");
@@ -137,92 +156,92 @@ export default function DataUploadPanel({
   }, []);
 
   // Polling for watchlist prices in realtime mode
-  useEffect(() => {
-    if (mode !== "realtime" || !upstoxAccessToken || watchlist.length === 0) {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-      return;
-    }
+  // useEffect(() => {
+  //   if (mode !== "realtime" || !upstoxAccessToken || watchlist.length === 0) {
+  //     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+  //     return;
+  //   }
 
-    const fetchWatchlistPrices = async () => {
-      if (!upstoxAccessToken || watchlist.length === 0) return;
-      // Skip polling if WebSocket is connected (for realtime mode)
-      if (mode === "realtime" && wsConnected) return;
-      try {
-        const keys = watchlist
-          .map((item) => encodeURIComponent(item.instrument_key))
-          .join(",");
-        const response = await fetch(
-          `/api/upstox/market-quote?instrument_key=${keys}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
-          { method: "GET" },
-        );
-        const result = await response.json();
+  //   const fetchWatchlistPrices = async () => {
+  //     if (!upstoxAccessToken || watchlist.length === 0) return;
+  //     // Skip polling if WebSocket is connected (for realtime mode)
+  //     if (mode === "realtime" && wsConnected) return;
+  //     try {
+  //       const keys = watchlist
+  //         .map((item) => encodeURIComponent(item.instrument_key))
+  //         .join(",");
+  //       const response = await fetch(
+  //         `/api/upstox/market-quote?instrument_key=${keys}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
+  //         { method: "GET" },
+  //       );
+  //       const result = await response.json();
 
-        if (result.status === "success" && result.data) {
-          const newPrices: Record<string, any> = {};
-          // Map the returned data keys to the watchlist instrument keys
-          watchlist.forEach((item) => {
-            // Try to find matching data by checking all keys in the response
-            const dataKey = Object.keys(result.data).find(
-              (key) =>
-                key.includes(item.trading_symbol) ||
-                key.includes(item.instrument_key.split("|")[1]),
-            );
-            if (dataKey && result.data[dataKey]) {
-              const data = result.data[dataKey];
-              // Calculate percentage using net_change: Previous Close = last_price - net_change
-              // % Change = (net_change / Previous Close) * 100
-              const previousClose = data.last_price - data.net_change;
-              const changePercent =
-                previousClose !== 0
-                  ? (data.net_change / previousClose) * 100
-                  : 0;
-              newPrices[item.instrument_key] = {
-                ltp: data.last_price || 0,
-                change: data.net_change || 0,
-                changePercent: changePercent,
-              };
-            }
-          });
-          setWatchlistPrices(newPrices);
-        } else {
-        }
-      } catch (e) {
-        console.error("Failed to fetch watchlist prices:", e);
-      }
-    };
+  //       if (result.status === "success" && result.data) {
+  //         const newPrices: Record<string, any> = {};
+  //         // Map the returned data keys to the watchlist instrument keys
+  //         watchlist.forEach((item) => {
+  //           // Try to find matching data by checking all keys in the response
+  //           const dataKey = Object.keys(result.data).find(
+  //             (key) =>
+  //               key.includes(item.trading_symbol) ||
+  //               key.includes(item.instrument_key.split("|")[1]),
+  //           );
+  //           if (dataKey && result.data[dataKey]) {
+  //             const data = result.data[dataKey];
+  //             // Calculate percentage using net_change: Previous Close = last_price - net_change
+  //             // % Change = (net_change / Previous Close) * 100
+  //             const previousClose = data.last_price - data.net_change;
+  //             const changePercent =
+  //               previousClose !== 0
+  //                 ? (data.net_change / previousClose) * 100
+  //                 : 0;
+  //             newPrices[item.instrument_key] = {
+  //               ltp: data.last_price || 0,
+  //               change: data.net_change || 0,
+  //               changePercent: changePercent,
+  //             };
+  //           }
+  //         });
+  //         setWatchlistPrices(newPrices);
+  //       } else {
+  //       }
+  //     } catch (e) {
+  //       console.error("Failed to fetch watchlist prices:", e);
+  //     }
+  //   };
 
-    // Initial fetch
-    fetchWatchlistPrices();
+  //   // Initial fetch
+  //   fetchWatchlistPrices();
 
-    // Set up interval
-    pollingIntervalRef.current = setInterval(fetchWatchlistPrices, 4000);
+  //   // Set up interval
+  //   pollingIntervalRef.current = setInterval(fetchWatchlistPrices, 4000);
 
-    return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    };
-  }, [mode, upstoxAccessToken, watchlist, wsConnected]);
+  //   return () => {
+  //     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+  //   };
+  // }, [mode, upstoxAccessToken, watchlist, wsConnected]);
 
-  // Fetch calibrated instruments from VWAP server
-  useEffect(() => {
-    const fetchCalibratedInstruments = async () => {
-      try {
-        const response = await vwapServerService.getInstruments();
-        const instrumentKeys = new Set(
-          response.instruments
-            .filter((inst) => inst.sessionLive)
-            .map((inst) => inst.instrumentKey),
-        );
-        setCalibratedInstruments(instrumentKeys);
-      } catch (error) {
-        console.error("Failed to fetch calibrated instruments:", error);
-      }
-    };
+  // // Fetch calibrated instruments from VWAP server
+  // useEffect(() => {
+  //   const fetchCalibratedInstruments = async () => {
+  //     try {
+  //       const response = await vwapServerService.getInstruments();
+  //       const instrumentKeys = new Set(
+  //         response.instruments
+  //           .filter((inst) => inst.sessionLive)
+  //           .map((inst) => inst.instrumentKey),
+  //       );
+  //       setCalibratedInstruments(instrumentKeys);
+  //     } catch (error) {
+  //       console.error("Failed to fetch calibrated instruments:", error);
+  //     }
+  //   };
 
-    fetchCalibratedInstruments();
-    // Poll every 30 seconds for calibration status updates
-    const interval = setInterval(fetchCalibratedInstruments, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  //   fetchCalibratedInstruments();
+  //   // Poll every 30 seconds for calibration status updates
+  //   const interval = setInterval(fetchCalibratedInstruments, 30000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   const validateToken = async (token: string) => {
     setTokenValidating(true);
@@ -268,7 +287,7 @@ export default function DataUploadPanel({
   };
 
   const handleSearch = async (query: string) => {
-    if (!query || query.length < 2 || !upstoxAccessToken) {
+    if (!query || query.length < 2) {
       setInstrumentSuggestions([]);
       setShowSuggestions(false);
       return [];
@@ -279,9 +298,11 @@ export default function DataUploadPanel({
         `/api/upstox/instruments/search?query=${encodeURIComponent(query)}&exchange=NSE&segment=EQ`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${upstoxAccessToken}`,
-          },
+          headers: upstoxAccessToken
+  ? {
+      Authorization: `Bearer ${upstoxAccessToken}`,
+    }
+  : {},
         },
       );
       const upstoxResult = await upstoxResponse.json();
@@ -391,24 +412,24 @@ export default function DataUploadPanel({
   const addToWatchlist = async (instrument: any) => {
   try {
     const targetWatchlist =
-      watchlists?.[0];
+  watchlists.find(
+    (w) =>
+      w.watchlistId ===
+      selectedTargetWatchlist
+  );
 
     if (!targetWatchlist) {
-      console.error(
-        "No backend watchlist available"
-      );
+      console.error("No backend watchlist available");
       return;
     }
 
     await addInstrument(
-      selectedClient?.id || "CLIENT_1",
+      clientId,
       targetWatchlist.watchlistId,
       {
-        instrumentKey:
-          instrument.instrument_key,
+        instrumentKey: instrument.instrument_key,
 
-        tradingSymbol:
-          instrument.trading_symbol,
+        tradingSymbol: instrument.trading_symbol,
 
         name:
           instrument.name ||
@@ -418,8 +439,7 @@ export default function DataUploadPanel({
           instrument.exchange || "NSE",
 
         instrumentType:
-          instrument.instrument_type ||
-          "EQ",
+          instrument.instrument_type || "EQ",
 
         lotSize: String(
           instrument.lot_size || 1
@@ -429,15 +449,14 @@ export default function DataUploadPanel({
       }
     );
 
-    await fetchWatchlists(
-      selectedClient?.id || "CLIENT_1"
-    );
+    await fetchWatchlists(clientId);
 
     setWatchlistSearchQuery("");
 
     setWatchlistSuggestions([]);
 
     setShowWatchlistSuggestions(false);
+
   } catch (error) {
     console.error(
       "Failed to add instrument",
@@ -446,11 +465,11 @@ export default function DataUploadPanel({
   }
 };
 
-  const removeFromWatchlist = (instrumentKey: string) => {
-    setWatchlist(
-      watchlist.filter((item) => item.instrument_key !== instrumentKey),
-    );
-  };
+  // const removeFromWatchlist = (instrumentKey: string) => {
+  //   setWatchlist(
+  //     watchlist.filter((item) => item.instrument_key !== instrumentKey),
+  //   );
+  // };
 
   const handleSelectInstrument = (instrument: any) => {
     setInstrumentKey(instrument.instrument_key);
@@ -770,15 +789,15 @@ export default function DataUploadPanel({
                         <button
                           key={idx}
                           type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleSelectInstrument(inst);
-                          }}
+                          // onClick={(e) => {
+                          //   e.preventDefault();
+                          //   e.stopPropagation();
+                          //   handleSelectInstrument(inst);
+                          // }}
                           className="w-full relative px-3 py-2 text-left text-sm hover:bg-secondary/60 focus:bg-secondary/60 focus:outline-none transition-all group overflow-hidden"
                         >
                           <div className="absolute inset-y-0 left-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 justify-between">
                             {inst.company?.logo || inst.company?.domain ? (
                               <img
                                 src={
@@ -829,6 +848,17 @@ export default function DataUploadPanel({
                                 )}
                               </div>
                             </div>
+                            <button
+  type="button"
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToWatchlist(inst);
+  }}
+  className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+>
+  Add
+</button>
                           </div>
                         </button>
                       ))}
@@ -969,8 +999,33 @@ export default function DataUploadPanel({
           <p className="text-sm font-medium text-foreground mb-3">Watchlist</p>
 
           <div className="space-y-3">
+            <div>
+  <label className="text-xs text-muted-foreground mb-1 block">
+    Target Watchlist
+  </label>
+
+  <select
+    value={selectedTargetWatchlist}
+    onChange={(e) =>
+      setSelectedTargetWatchlist(
+        e.target.value
+      )
+    }
+    className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
+  >
+    {watchlists.map((wl) => (
+      <option
+        key={wl.watchlistId}
+        value={wl.watchlistId}
+      >
+        {wl.name}
+      </option>
+    ))}
+  </select>
+</div>
             {/* Add to Watchlist Search */}
             <div className="relative">
+              
               <label className="text-xs text-muted-foreground mb-1 block">
                 Add Stock to Watchlist
               </label>
@@ -1073,11 +1128,14 @@ export default function DataUploadPanel({
                       ))}
                     </div>
                   )}
+                  <p className="text-xs text-muted-foreground py-2">
+  Search and add instruments to backend watchlists
+</p>
               </div>
             </div>
 
             {/* Watchlist Items */}
-            {watchlist.length > 0 ? (
+            {/* {watchlist.length > 0 ? (
               <div className="space-y-1">
                 {watchlist.map((item) => {
                   const priceData = watchlistPrices[item.instrument_key];
@@ -1181,7 +1239,7 @@ export default function DataUploadPanel({
                 No stocks in watchlist. Add stocks to see realtime prices and
                 market depth.
               </p>
-            )}
+            )} */}
           </div>
         </div>
       )}

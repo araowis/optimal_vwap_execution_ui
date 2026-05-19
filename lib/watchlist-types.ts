@@ -1,7 +1,14 @@
 export interface WatchlistInstrument {
   watchlistId: string;
+
   instrumentKey: string;
+
+  tradingSymbol?: string;
+
+  name?: string;
+
   position: number;
+
   isCalibrated: boolean;
 }
 

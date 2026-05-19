@@ -91,20 +91,25 @@ export async function getWatchlist(
  */
 export async function createWatchlist(
   clientId: string,
-  payload: CreateWatchlistRequest
+  payload: {
+    name: string;
+  }
 ): Promise<Watchlist> {
   const response = await fetch(
     `${BASE_URL}/api/clients/${clientId}/watchlists`,
     {
       method: "POST",
+
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
       },
+
       body: JSON.stringify(payload),
     }
   );
 
-  return handleResponse<Watchlist>(response);
+  return handleResponse(response);
 }
 
 /**
@@ -200,20 +205,17 @@ export async function removeInstrument(
   clientId: string,
   watchlistId: string,
   instrumentKey: string
-): Promise<Watchlist> {
+): Promise<void> {
   const response = await fetch(
     `${BASE_URL}/api/clients/${clientId}/watchlists/${watchlistId}/instruments/${encodeURIComponent(
       instrumentKey
     )}`,
     {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
     }
   );
 
-  return handleResponse<Watchlist>(response);
+  await handleResponse(response);
 }
 
 /**
