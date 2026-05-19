@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  Check,
+  Pencil,
+  Trash2
+} from "lucide-react";
 
 import {
   ChevronDown,
@@ -11,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { useWatchlistStore } from "@/stores/watchlist-store";
-import { removeInstrument, createWatchlist} from "@/lib/watchlist-service";
+import { removeInstrument, createWatchlist, renameWatchlist, deleteWatchlist} from "@/lib/watchlist-service";
 
 interface WatchlistPanelProps {
   clientId: string;
@@ -23,6 +28,17 @@ export default function WatchlistPanel({
   clientId,
   onSelectStock,
 }: WatchlistPanelProps) {
+  const [
+  editingWatchlistId,
+  setEditingWatchlistId,
+] = useState<string | null>(
+  null
+);
+
+const [
+  editingName,
+  setEditingName,
+] = useState("");
   const {
     watchlists,
     loading,
@@ -49,6 +65,37 @@ const [
     }
   }, [clientId, fetchWatchlists]);
 
+  const handleDeleteWatchlist =
+  async (
+    watchlistId: string
+  ) => {
+    try {
+      await deleteWatchlist(
+        clientId,
+        watchlistId
+      );
+
+      if (
+        expandedWatchlist ===
+        watchlistId
+      ) {
+        setExpandedWatchlist(
+          null
+        );
+      }
+
+      await fetchWatchlists(
+        clientId
+      );
+
+    } catch (error) {
+      console.error(
+        "Failed to delete watchlist",
+        error
+      );
+    }
+  };
+
   const handleRemoveInstrument =
   async (
     watchlistId: string,
@@ -65,6 +112,41 @@ const [
     } catch (error) {
       console.error(
         "Failed to remove instrument",
+        error
+      );
+    }
+  };
+
+  const handleRenameWatchlist =
+  async (
+    watchlistId: string
+  ) => {
+    if (!editingName.trim())
+      return;
+
+    try {
+      await renameWatchlist(
+        clientId,
+        watchlistId,
+        {
+          name:
+            editingName.trim(),
+        }
+      );
+
+      setEditingWatchlistId(
+        null
+      );
+
+      setEditingName("");
+
+      await fetchWatchlists(
+        clientId
+      );
+
+    } catch (error) {
+      console.error(
+        "Failed to rename watchlist",
         error
       );
     }
@@ -120,7 +202,7 @@ const [
           !creatingWatchlist
         )
       }
-      className="text-xs px-2 py-1 rounded border border-border hover:bg-secondary/50 transition-colors"
+      className="text-xs px-2 py-1 rounded border border-border hover:bg-secondary/70/50 transition-colors"
     >
       + New
     </button>
@@ -187,29 +269,108 @@ const [
               className="border border-border rounded-lg overflow-hidden"
             >
               {/* Watchlist Header */}
-              <button
-                onClick={() =>
-                  setExpandedWatchlist(
-                    isExpanded
-                      ? null
-                      : watchlist.watchlistId
-                  )
-                }
-                className="w-full flex items-center justify-between px-3 py-2 hover:bg-secondary/50 transition-colors"
-              >
+              
+              <div
+  className="w-full flex items-center justify-between px-3 py-2 hover:bg-secondary/70/50 transition-colors"
+>
                 <div className="flex items-center gap-2 min-w-0">
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  )}
+                  <button
+  type="button"
+  onClick={() =>
+    setExpandedWatchlist(
+      isExpanded
+        ? null
+        : watchlist.watchlistId
+    )
+  }
+  className="flex items-center justify-center"
+>
+  {isExpanded ? (
+    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+  ) : (
+    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  )}
+</button>
 
-                  <span className="text-sm font-medium truncate">
-                    {watchlist.name}
-                  </span>
+                  {editingWatchlistId ===
+watchlist.watchlistId ? (
+  <div className="flex items-center gap-2 flex-1 pr-2 min-w-0">
+    <input
+      type="text"
+      value={editingName}
+      onChange={(e) =>
+        setEditingName(
+          e.target.value
+        )
+      }
+      className="h-8 flex-1 min-w-0 px-3 text-sm border border-border rounded-md bg-background"
+    />
+
+    <button
+      type="button"
+      onClick={() =>
+        handleRenameWatchlist(
+          watchlist.watchlistId
+        )
+      }
+      className="h-8 px-3 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap"
+    >
+      <Check className="w-4 h-4" />
+    </button>
+  </div>
+) : (
+  <div className="flex items-center flex-1 min-w-0">
+<div className="flex items-center gap-2">
+  <span className="font-medium">
+    {watchlist.name}
+  </span>
+
+  {/* Rename */}
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+
+      setEditingWatchlistId(
+        watchlist.watchlistId
+      );
+
+      setEditingName(
+        watchlist.name
+      );
+    }}
+    className="text-muted-foreground hover:text-foreground transition-colors"
+  >
+    <Pencil className="w-3.5 h-3.5" />
+  </button>
+
+  {/* Delete */}
+  <button
+    type="button"
+    onClick={async (e) => {
+      e.stopPropagation();
+
+      const confirmed =
+        window.confirm(
+          `Delete "${watchlist.name}"?`
+        );
+
+      if (!confirmed) return;
+
+      await handleDeleteWatchlist(
+        watchlist.watchlistId
+      );
+    }}
+    className="text-muted-foreground hover:text-red-500 transition-colors"
+  >
+    <Trash2 className="w-3.5 h-3.5" />
+  </button>
+</div>
+  </div>
+)}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   {/* Calibration */}
                   {watchlist.isFullyCalibrated ? (
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -222,7 +383,7 @@ const [
                     {watchlist.size}
                   </span>
                 </div>
-              </button>
+              </div>
 
               {/* Instruments */}
               {isExpanded && (
@@ -253,7 +414,7 @@ const [
     instrument.instrumentKey,
 })
                           }
-                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-secondary transition-colors text-left"
+                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-secondary/70 transition-colors text-left"
                         >
                           <div className="flex flex-col">
                             <span className="text-sm font-medium">
@@ -277,7 +438,7 @@ const [
 </span>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
   {instrument.isCalibrated ? (
     <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
   ) : (
@@ -296,7 +457,7 @@ const [
     }}
     className="text-muted-foreground hover:text-red-500 transition-colors"
   >
-    X
+    <Trash2 className="w-3.5 h-3.5" />
   </button>
 </div>
                         </button>

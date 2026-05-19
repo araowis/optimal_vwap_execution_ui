@@ -154,6 +154,33 @@ export async function archiveWatchlist(
   return handleResponse<Watchlist>(response);
 }
 
+/** Rename watchlist
+ */
+
+export async function renameWatchlist(
+  clientId: string,
+  watchlistId: string,
+  payload: {
+    name: string;
+  }
+): Promise<Watchlist> {
+  const response = await fetch(
+    `${BASE_URL}/api/clients/${clientId}/watchlists/${watchlistId}`,
+    {
+      method: "PATCH",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify(payload),
+    }
+  );
+
+  return handleResponse(response);
+}
+
 /**
  * Delete watchlist
  */
@@ -165,17 +192,11 @@ export async function deleteWatchlist(
     `${BASE_URL}/api/clients/${clientId}/watchlists/${watchlistId}`,
     {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
     }
   );
 
-  if (!response.ok) {
-    throw new Error("Failed to delete watchlist");
-  }
+  await handleResponse(response);
 }
-
 /**
  * Add instrument
  */
