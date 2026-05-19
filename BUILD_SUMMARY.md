@@ -105,6 +105,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 ## Files Created
 
 ### TypeScript Types & Logic (1,482 lines)
+
 - **types.ts**: 181 lines - Complete type system
 - **data-parser.ts**: 207 lines - CSV parsing with validation
 - **vwap-calculator.ts**: 183 lines - VWAP algorithms
@@ -114,6 +115,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - **backend-integration.ts**: 324 lines - API client
 
 ### React Components (1,390 lines)
+
 - **DashboardLayout.tsx**: 166 lines - Main layout
 - **Header.tsx**: 28 lines - Header
 - **DataUploadPanel.tsx**: 91 lines - Upload UI
@@ -126,14 +128,17 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - **VolumeChart.tsx**: 124 lines - Volume chart
 
 ### Configuration & Styling (300+ lines)
+
 - **globals.css**: Updated with professional trading theme
 - **app/layout.tsx**: Updated metadata
 
 ### Documentation (614 lines)
+
 - **VWAP_DASHBOARD_README.md**: 249 lines - Feature guide
 - **SETUP.md**: 365 lines - Setup & deployment
 
 ### Sample Data
+
 - **sample-data.csv**: 65 lines of test data
 
 **Total Lines of Code: 3,100+**
@@ -152,22 +157,26 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 ## Architecture Highlights
 
 ### Modular Design
+
 - Separated concerns: UI, business logic, data processing
 - Reusable components for chart visualization
 - Clear data flow: Upload → Parse → Calculate → Visualize → Backtest
 
 ### Type Safety
+
 - Complete TypeScript types for all data structures
 - Compile-time type checking
 - Better IDE support and developer experience
 
 ### Performance
+
 - Efficient SVG rendering for charts
 - Optimized data aggregation
 - Lazy loading of components
 - Memoization for expensive calculations
 
 ### Customization
+
 - Full color customization system
 - Adjustable VWAP band width
 - Configurable volume bins (5, 10, 20, 50)
@@ -175,6 +184,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Theme switching (light/dark)
 
 ### Extensibility
+
 - Designed for Java backend integration
 - WebSocket support for real-time updates
 - Polling mechanism as fallback
@@ -184,6 +194,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 ## Features Breakdown
 
 ### Data Upload & Validation ✅
+
 - Accept CSV files in standard format
 - Validate all required columns
 - Handle timestamps with timezone
@@ -191,6 +202,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Show upload progress
 
 ### VWAP Calculation ✅
+
 - Calculate volume-weighted average price
 - Compute rolling standard deviations
 - Generate upper and lower bands
@@ -198,6 +210,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Support band width customization
 
 ### Buy Signal Detection ✅
+
 - Identify trades below VWAP threshold
 - Calculate signal strength (0-100)
 - Volume condition validation
@@ -205,6 +218,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Signal display on chart
 
 ### Volume Analysis ✅
+
 - Distribute volume across price bins
 - Create volume profiles
 - Detect volume clusters
@@ -212,6 +226,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Visualize with color coding
 
 ### Backtest Execution ✅
+
 - Simulate multi-tranche execution
 - Track per-trade metrics
 - Calculate transaction costs
@@ -219,6 +234,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Provide detailed results
 
 ### Comprehensive Benchmarking ✅
+
 - Execution vs VWAP comparison
 - Implementation shortfall
 - Cost breakdown visualization
@@ -226,6 +242,7 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 - Tranche-level analysis
 
 ### Visualization & Customization ✅
+
 - Candlestick charts with VWAP overlay
 - VWAP bands with configurable width
 - Volume visualization with bins
@@ -238,23 +255,27 @@ A comprehensive institutional-grade VWAP (Volume Weighted Average Price) trading
 ## Calculation Features
 
 ### VWAP Formula
+
 ```
 VWAP = Σ(TP × Volume) / Σ(Volume)
 where TP = (High + Low + Close) / 3
 ```
 
 ### VWAP Bands
+
 ```
 Upper = VWAP + (StdDev × Multiplier)
 Lower = VWAP - (StdDev × Multiplier)
 ```
 
 ### Implementation Shortfall
+
 ```
 IS = (Arrival Price - Execution Price) × Qty + Costs
 ```
 
 ### Transaction Costs
+
 - Spread: Market spread in basis points
 - Brokerage: Percentage commission
 - STT: Securities Transaction Tax
@@ -279,6 +300,7 @@ IS = (Arrival Price - Execution Price) × Qty + Costs
 ## Integration Ready
 
 ### Backend API Integration
+
 - RESTful endpoints defined
 - WebSocket streaming configured
 - Polling fallback mechanism
@@ -286,12 +308,14 @@ IS = (Arrival Price - Execution Price) × Qty + Costs
 - Type-safe API client
 
 ### Upstox API Integration
+
 - API configuration ready
 - OAuth flow prepared
 - Real-time data fetch capability
 - Error handling for API limits
 
 ### Java Backend Endpoints Expected
+
 ```
 POST   /api/backtest/submit
 GET    /api/backtest/results/:jobId
@@ -306,6 +330,7 @@ GET    /health
 ## Development Workflow
 
 ### Local Development
+
 ```bash
 pnpm install
 pnpm dev
@@ -313,12 +338,14 @@ pnpm dev
 ```
 
 ### Build for Production
+
 ```bash
 pnpm build
 pnpm start
 ```
 
 ### Docker Deployment
+
 ```bash
 docker build -t vwap-dashboard .
 docker run -p 3000:3000 vwap-dashboard

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,20 +9,22 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { AlertCircle, Key, Lock } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { AlertCircle, Key, Lock } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface UpstoxConfigDialogProps {
   onConfigured: (config: { accessToken: string }) => void;
 }
 
-export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogProps) {
+export default function UpstoxConfigDialog({
+  onConfigured,
+}: UpstoxConfigDialogProps) {
   const [open, setOpen] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
+  const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,15 +32,15 @@ export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogP
     setError(null);
 
     if (!accessToken) {
-      setError('Please enter your access token');
+      setError("Please enter your access token");
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch('/api/upstox/health', {
-        method: 'GET',
+      const response = await fetch("/api/upstox/health", {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -47,14 +49,18 @@ export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogP
       const result = await response.json();
 
       if (!result.ok) {
-        setError(`Invalid access token: ${result.error || 'Please check your token'}`);
+        setError(
+          `Invalid access token: ${result.error || "Please check your token"}`,
+        );
         return;
       }
 
       onConfigured({ accessToken });
       setOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to validate access token');
+      setError(
+        err instanceof Error ? err.message : "Failed to validate access token",
+      );
     } finally {
       setLoading(false);
     }
@@ -75,7 +81,8 @@ export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogP
             Configure Upstox API
           </DialogTitle>
           <DialogDescription>
-            Enter your Upstox API credentials to connect and fetch real-time market data.
+            Enter your Upstox API credentials to connect and fetch real-time
+            market data.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,16 +101,16 @@ export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogP
               disabled={loading}
             />
             <p className="text-xs text-muted-foreground">
-              Get your access token from{' '}
-              <a 
-                href="https://account.upstox.com/developer/apps" 
-                target="_blank" 
+              Get your access token from{" "}
+              <a
+                href="https://account.upstox.com/developer/apps"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
                 Upstox Developer Apps
-              </a>
-              {' '} (valid for 30 days)
+              </a>{" "}
+              (valid for 30 days)
             </p>
           </div>
 
@@ -117,8 +124,9 @@ export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogP
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              <strong>Important:</strong> Your access token will be stored locally in your browser.
-              The access token is valid for 30 days from generation.
+              <strong>Important:</strong> Your access token will be stored
+              locally in your browser. The access token is valid for 30 days
+              from generation.
             </AlertDescription>
           </Alert>
         </div>
@@ -132,7 +140,7 @@ export default function UpstoxConfigDialog({ onConfigured }: UpstoxConfigDialogP
             Cancel
           </Button>
           <Button onClick={handleConnect} disabled={loading}>
-            {loading ? 'Saving...' : 'Save Configuration'}
+            {loading ? "Saving..." : "Save Configuration"}
           </Button>
         </DialogFooter>
       </DialogContent>

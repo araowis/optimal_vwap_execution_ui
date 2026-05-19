@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('query');
+  const query = searchParams.get("query");
 
   if (!query) {
     return NextResponse.json(
-      { error: 'Missing query parameter' },
-      { status: 400 }
+      { error: "Missing query parameter" },
+      { status: 400 },
     );
   }
 
@@ -16,17 +16,17 @@ export async function GET(request: NextRequest) {
       `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(query)}`,
       {
         headers: {
-          'Accept': 'application/json',
+          Accept: "application/json",
         },
-      }
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Clearbit API error:', errorText);
+      console.error("Clearbit API error:", errorText);
       return NextResponse.json(
-        { error: 'Failed to fetch company suggestions' },
-        { status: response.status }
+        { error: "Failed to fetch company suggestions" },
+        { status: response.status },
       );
     }
 
@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
-    console.error('Error fetching Clearbit suggestions:', error);
+    console.error("Error fetching Clearbit suggestions:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch company suggestions' },
-      { status: 500 }
+      { error: "Failed to fetch company suggestions" },
+      { status: 500 },
     );
   }
 }

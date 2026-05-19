@@ -56,8 +56,8 @@ export interface StrategyParams {
   maxSlippage: number; // Percentage
   vwapDeviation: number; // Percentage threshold for buy signal
   minVolumeThreshold: number;
-  orderType: 'LIMIT' | 'MARKET';
-  executionTimeframe: 'INTRADAY' | 'MULTI_DAY';
+  orderType: "LIMIT" | "MARKET";
+  executionTimeframe: "INTRADAY" | "MULTI_DAY";
   enableTxCosts: boolean;
   txCostConfig: {
     brokeragePercent: number;
@@ -156,8 +156,8 @@ export interface PerformanceMetrics {
 
 // Customization Preferences
 export interface CustomizationPrefs {
-  chartPeriod: 'MINUTE' | '5MIN' | '15MIN' | 'HOURLY' | 'DAILY';
-  chartType: 'CANDLESTICK' | 'OHLC' | 'LINE';
+  chartPeriod: "MINUTE" | "5MIN" | "15MIN" | "HOURLY" | "DAILY";
+  chartType: "CANDLESTICK" | "OHLC" | "LINE";
   vwapVisible: boolean;
   bandsVisible: boolean;
   bandWidth: number; // Standard deviation multiplier
@@ -170,15 +170,15 @@ export interface CustomizationPrefs {
   volumeVisible: boolean;
   volumeBinsVisible: boolean;
   numVolumeBins: 5 | 10 | 20 | 50;
-  volumeColoring: 'MONOCHROME' | 'GRADIENT' | 'BY_PRICE';
+  volumeColoring: "MONOCHROME" | "GRADIENT" | "BY_PRICE";
   signalsVisible: boolean;
   signalMarkerSize: number;
-  signalMarkerType: 'PIN' | 'DOT' | 'ARROW';
+  signalMarkerType: "PIN" | "DOT" | "ARROW";
   showSignalLines: boolean;
   signalStrengthThreshold: number;
   buyThreshold: number; // Percentage below VWAP
   minVolumeThreshold: number;
-  theme: 'LIGHT' | 'DARK';
+  theme: "LIGHT" | "DARK";
   hoverDetailsVisible: boolean;
 }
 
@@ -191,7 +191,12 @@ export interface UpstoxConfig {
 
 // WebSocket Message Types
 export interface WSMessage {
-  type: 'BACKTEST_PROGRESS' | 'BACKTEST_COMPLETE' | 'PRICE_UPDATE' | 'SIGNAL' | 'ERROR';
+  type:
+    | "BACKTEST_PROGRESS"
+    | "BACKTEST_COMPLETE"
+    | "PRICE_UPDATE"
+    | "SIGNAL"
+    | "ERROR";
   data: any;
   timestamp: Date;
   progress?: number; // 0-100
@@ -215,7 +220,7 @@ export interface BackendBuySignal {
 /** Result for a single date in the backtest */
 export interface DailyBacktestResult {
   date: string; // "YYYY-MM-DD"
-  status: 'OK' | 'NOT_A_TRADING_DAY' | 'ERROR';
+  status: "OK" | "NOT_A_TRADING_DAY" | "ERROR";
   errorMessage?: string;
   marketVwap?: number;
   tradedVwap?: number;

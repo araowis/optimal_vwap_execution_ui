@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useCallback } from 'react';
-import { useUpstoxFeedStream } from './use-upstox-feed-stream';
+import { useCallback } from "react";
+import { useUpstoxFeedStream } from "./use-upstox-feed-stream";
 
 interface RealtimePriceData {
   ltp: number;
@@ -36,7 +36,7 @@ export function useUpstoxWebSocket({
     accessToken,
     instrumentKey,
     enabled,
-    mode: 'full_d30',
+    mode: "full_d30",
     onUpdate: (update) => {
       const priceData: RealtimePriceData = {
         ltp: update.ltp,
@@ -48,9 +48,9 @@ export function useUpstoxWebSocket({
   });
 
   if (isConnected) {
-    localStorage.setItem('websocket-connected', 'true');
+    localStorage.setItem("websocket-connected", "true");
   } else {
-    localStorage.setItem('websocket-connected', 'false');
+    localStorage.setItem("websocket-connected", "false");
   }
 
   return {

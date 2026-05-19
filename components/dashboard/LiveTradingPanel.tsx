@@ -97,6 +97,10 @@ export default function LiveTradingPanel({ instrumentKey }: LiveTradingPanelProp
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
+              <span className="text-xs text-muted-foreground">Client</span>
+              <p className="font-medium text-foreground">{lastCalibration.clientId}</p>
+            </div>
+            <div>
               <span className="text-xs text-muted-foreground">Instrument</span>
               <p className="font-medium text-foreground">{lastCalibration.instrument}</p>
             </div>
@@ -162,6 +166,10 @@ export default function LiveTradingPanel({ instrumentKey }: LiveTradingPanelProp
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-xs text-muted-foreground">Client</span>
+              <p className="font-medium text-foreground">{lastSignal.clientId}</p>
+            </div>
             <div>
               <span className="text-xs text-muted-foreground">Instrument</span>
               <p className="font-medium text-foreground">{lastSignal.instrument}</p>

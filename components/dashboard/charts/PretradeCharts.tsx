@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   Line,
   LineChart,
@@ -10,43 +10,54 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-} from 'recharts';
-import { PretradeResponse } from '@/lib/vwap-server-service';
+} from "recharts";
+import { PretradeResponse } from "@/lib/vwap-server-service";
 
 interface PretradeChartsProps {
   pretradeData: PretradeResponse | null;
   liveCalibration?: any | null;
 }
 
-type PretradeGraphType = 'eXt' | 'varXt' | 'sigma2t' | 'muT' | 'executionScore' | 'avgVolumePerBar';
+type PretradeGraphType =
+  | "eXt"
+  | "varXt"
+  | "sigma2t"
+  | "muT"
+  | "executionScore"
+  | "avgVolumePerBar";
 
 const graphLabels: Record<string, string> = {
-  eXt: 'Expected Volume (eXt)',
-  xStar: 'Optimal Schedule (xStar)',
-  varXt: 'Variance (varXt)',
-  sigma2t: 'Sigma² (sigma2t)',
-  muT: 'Mean (muT)',
-  executionScore: 'Execution Score',
-  avgVolumePerBar: 'Avg Volume Per Bar',
+  eXt: "Expected Volume (eXt)",
+  xStar: "Optimal Schedule (xStar)",
+  varXt: "Variance (varXt)",
+  sigma2t: "Sigma² (sigma2t)",
+  muT: "Mean (muT)",
+  executionScore: "Execution Score",
+  avgVolumePerBar: "Avg Volume Per Bar",
 };
 
 const graphColors: Record<PretradeGraphType, string> = {
-  eXt: '#f59e0b',
-  varXt: '#8b5cf6',
-  sigma2t: '#ec4899',
-  muT: '#06b6d4',
-  executionScore: '#10b981',
-  avgVolumePerBar: '#3b82f6',
+  eXt: "#f59e0b",
+  varXt: "#8b5cf6",
+  sigma2t: "#ec4899",
+  muT: "#06b6d4",
+  executionScore: "#10b981",
+  avgVolumePerBar: "#3b82f6",
 };
 
-export default function PretradeCharts({ pretradeData, liveCalibration }: PretradeChartsProps) {
-  const [selectedGraph, setSelectedGraph] = useState<string>('eXt');
+export default function PretradeCharts({
+  pretradeData,
+  liveCalibration,
+}: PretradeChartsProps) {
+  const [selectedGraph, setSelectedGraph] = useState<string>("eXt");
 
   const chartData = useMemo(() => {
     if (!pretradeData && !liveCalibration) return [];
-    
+
     // Use live data if available, fallback to pretrade
-    const timeLabels = pretradeData?.timeLabels || Array.from({ length: 375 }, (_, i) => String(i));
+    const timeLabels =
+      pretradeData?.timeLabels ||
+      Array.from({ length: 375 }, (_, i) => String(i));
     const eXt = liveCalibration?.eXt || pretradeData?.eXt || [];
     const xStar = liveCalibration?.xStar || [];
     const varXt = pretradeData?.varXt || [];
@@ -77,7 +88,9 @@ export default function PretradeCharts({ pretradeData, liveCalibration }: Pretra
   if (!pretradeData) {
     return (
       <div className="h-32 bg-background rounded-lg border border-border overflow-hidden flex items-center justify-center">
-        <p className="text-xs text-muted-foreground">No pretrade data available</p>
+        <p className="text-xs text-muted-foreground">
+          No pretrade data available
+        </p>
       </div>
     );
   }
@@ -94,9 +107,13 @@ export default function PretradeCharts({ pretradeData, liveCalibration }: Pretra
             className="w-full text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none text-foreground font-medium"
           >
             {Object.entries(graphLabels).map(([key, label]) => {
-              if (key === 'xStar' && !liveCalibration) return null;
+              if (key === "xStar" && !liveCalibration) return null;
               return (
-                <option key={key} value={key} className="bg-background text-foreground">
+                <option
+                  key={key}
+                  value={key}
+                  className="bg-background text-foreground"
+                >
                   {label}
                 </option>
               );
@@ -118,21 +135,21 @@ export default function PretradeCharts({ pretradeData, liveCalibration }: Pretra
               tickFormatter={(value, index) => {
                 // Show every nth label to prevent overcrowding
                 const step = Math.ceil(chartData.length / 10);
-                return index % step === 0 ? value : '';
+                return index % step === 0 ? value : "";
               }}
             />
             <YAxis
               tick={{ fontSize: 10 }}
               stroke="var(--muted-foreground)"
-              domain={['auto', 'auto']}
+              domain={["auto", "auto"]}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
               }}
-              labelStyle={{ color: 'var(--foreground)' }}
+              labelStyle={{ color: "var(--foreground)" }}
             />
             <Legend />
             <Line

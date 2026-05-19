@@ -183,6 +183,9 @@ export interface WSConnectedMessage extends WSMessage {
 
 export interface WSSignalMessage extends WSMessage {
   type: 'signal';
+  /** Bare client ID, e.g. "TRADER_DESK" */
+  clientId: string;
+  /** Bare instrument key, e.g. "NSE_EQ|INE040A01034" — NOT the composite key */
   instrument: string;
   marketTime: string;
   binIdx: number;
@@ -201,6 +204,9 @@ export interface WSSignalMessage extends WSMessage {
 
 export interface WSCalibrationMessage extends WSMessage {
   type: 'calibration';
+  /** Bare client ID, e.g. "TRADER_DESK" */
+  clientId: string;
+  /** Bare instrument key, e.g. "NSE_EQ|INE040A01034" — NOT the composite key */
   instrument: string;
   marketTime: string;
   barIdx: number;
@@ -219,6 +225,9 @@ export interface WSCalibrationMessage extends WSMessage {
 
 export interface WSRegimeMessage extends WSMessage {
   type: 'regime';
+  /** Bare client ID, e.g. "TRADER_DESK" */
+  clientId: string;
+  /** Bare instrument key, e.g. "NSE_EQ|INE040A01034" — NOT the composite key */
   instrument: string;
   barIdx: number;
   previousRegime: 'UP' | 'DOWN' | 'NEUTRAL';

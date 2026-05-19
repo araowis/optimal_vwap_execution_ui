@@ -1,16 +1,23 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { Upload, AlertCircle, Search, Calendar, CheckCircle, XCircle } from 'lucide-react';
-import { parseCSV, parseCSVStreaming } from '@/lib/data-parser';
-import { Candle } from '@/lib/types';
-import UpstoxConfigDialog from './UpstoxConfigDialog';
-import MarketDepth from './MarketDepth';
-import { vwapServerService } from '@/lib/vwap-server-service';
+import { useState, useRef, useEffect } from "react";
+import {
+  Upload,
+  AlertCircle,
+  Search,
+  Calendar,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { parseCSV, parseCSVStreaming } from "@/lib/data-parser";
+import { Candle } from "@/lib/types";
+import UpstoxConfigDialog from "./UpstoxConfigDialog";
+import MarketDepth from "./MarketDepth";
+import { vwapServerService } from "@/lib/vwap-server-service";
 
 interface DataUploadPanelProps {
   onDataUpload: (data: Candle[], logo?: string, name?: string) => void;
-  mode?: 'backtest' | 'realtime';
+  mode?: "backtest" | "realtime";
   onWatchlistStockSelect?: (stock: any) => void;
   onUpstoxTokenChange?: (token: string | null) => void;
   wsConnected?: boolean;
@@ -36,18 +43,21 @@ interface Instrument {
 
 const highlightMatch = (text: string, query: string) => {
   if (!query || !text) return text;
-  const regex = new RegExp(`(${query})`, 'gi');
+  const regex = new RegExp(`(${query})`, "gi");
   const parts = String(text).split(regex);
   return (
     <>
       {parts.map((part, i) =>
         part.toLowerCase() === query.toLowerCase() ? (
-          <span key={i} className="text-primary bg-primary/20 rounded font-bold px-0.5 shadow-sm">
+          <span
+            key={i}
+            className="text-primary bg-primary/20 rounded font-bold px-0.5 shadow-sm"
+          >
             {part}
           </span>
         ) : (
           part
-        )
+        ),
       )}
     </>
   );
@@ -55,7 +65,7 @@ const highlightMatch = (text: string, query: string) => {
 
 export default function DataUploadPanel({
   onDataUpload,
-  mode = 'backtest',
+  mode = "backtest",
   onWatchlistStockSelect,
   onUpstoxTokenChange,
   wsConnected = false,
@@ -68,23 +78,25 @@ export default function DataUploadPanel({
   const [fileName, setFileName] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [upstoxAccessToken, setUpstoxAccessToken] = useState<string | null>(null);
+  const [upstoxAccessToken, setUpstoxAccessToken] = useState<string | null>(
+    null,
+  );
   const [upstoxConnected, setUpstoxConnected] = useState(false);
   const [tokenValidating, setTokenValidating] = useState(false);
-  
+
   // Upstox import state
-  const [instrumentKey, setInstrumentKey] = useState('');
-  const [instrumentQuery, setInstrumentQuery] = useState('');
+  const [instrumentKey, setInstrumentKey] = useState("");
+  const [instrumentQuery, setInstrumentQuery] = useState("");
   const [selectedInstrument, setSelectedInstrument] = useState<any>(null);
   const [instrumentSuggestions, setInstrumentSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [interval, setIntervalValue] = useState('day');
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [interval, setIntervalValue] = useState("day");
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Watchlist state for realtime mode
   const [localWatchlist, setLocalWatchlist] = useState<any[]>([]);
   const watchlist = propsWatchlist || localWatchlist;
@@ -93,17 +105,25 @@ export default function DataUploadPanel({
     else setLocalWatchlist(newWatchlist);
   };
 
-  const [watchlistPrices, setWatchlistPrices] = useState<Record<string, { ltp: number; change: number; changePercent: number }>>({});
-  const [selectedWatchlistStock, setSelectedWatchlistStock] = useState<any>(null);
-  const [watchlistSearchQuery, setWatchlistSearchQuery] = useState('');
+  const [watchlistPrices, setWatchlistPrices] = useState<
+    Record<string, { ltp: number; change: number; changePercent: number }>
+  >({});
+  const [selectedWatchlistStock, setSelectedWatchlistStock] =
+    useState<any>(null);
+  const [watchlistSearchQuery, setWatchlistSearchQuery] = useState("");
   const [watchlistSuggestions, setWatchlistSuggestions] = useState<any[]>([]);
-  const [showWatchlistSuggestions, setShowWatchlistSuggestions] = useState(false);
+  const [showWatchlistSuggestions, setShowWatchlistSuggestions] =
+    useState(false);
   const watchlistSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [calibratedInstruments, setCalibratedInstruments] = useState<Set<string>>(new Set());
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const [calibratedInstruments, setCalibratedInstruments] = useState<
+    Set<string>
+  >(new Set());
 
   useEffect(() => {
-    const saved = localStorage.getItem('upstox-access-token');
+    const saved = localStorage.getItem("upstox-access-token");
     if (saved) {
       validateToken(saved);
     }
@@ -111,7 +131,7 @@ export default function DataUploadPanel({
 
   // Polling for watchlist prices in realtime mode
   useEffect(() => {
-    if (mode !== 'realtime' || !upstoxAccessToken || watchlist.length === 0) {
+    if (mode !== "realtime" || !upstoxAccessToken || watchlist.length === 0) {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       return;
     }
@@ -119,35 +139,40 @@ export default function DataUploadPanel({
     const fetchWatchlistPrices = async () => {
       if (!upstoxAccessToken || watchlist.length === 0) return;
       // Skip polling if WebSocket is connected (for realtime mode)
-      if (mode === 'realtime' && wsConnected) return;
+      if (mode === "realtime" && wsConnected) return;
       try {
-        const keys = watchlist.map(item => encodeURIComponent(item.instrument_key)).join(',');
+        const keys = watchlist
+          .map((item) => encodeURIComponent(item.instrument_key))
+          .join(",");
         const response = await fetch(
           `/api/upstox/market-quote?instrument_key=${keys}&access_token=${encodeURIComponent(upstoxAccessToken)}`,
-          { method: 'GET' }
+          { method: "GET" },
         );
         const result = await response.json();
 
-        if (result.status === 'success' && result.data) {
+        if (result.status === "success" && result.data) {
           const newPrices: Record<string, any> = {};
           // Map the returned data keys to the watchlist instrument keys
           watchlist.forEach((item) => {
             // Try to find matching data by checking all keys in the response
-            const dataKey = Object.keys(result.data).find((key) =>
-              key.includes(item.trading_symbol) || key.includes(item.instrument_key.split('|')[1])
+            const dataKey = Object.keys(result.data).find(
+              (key) =>
+                key.includes(item.trading_symbol) ||
+                key.includes(item.instrument_key.split("|")[1]),
             );
             if (dataKey && result.data[dataKey]) {
               const data = result.data[dataKey];
               // Calculate percentage using net_change: Previous Close = last_price - net_change
               // % Change = (net_change / Previous Close) * 100
               const previousClose = data.last_price - data.net_change;
-              const changePercent = previousClose !== 0
-                ? (data.net_change / previousClose) * 100
-                : 0;
+              const changePercent =
+                previousClose !== 0
+                  ? (data.net_change / previousClose) * 100
+                  : 0;
               newPrices[item.instrument_key] = {
                 ltp: data.last_price || 0,
                 change: data.net_change || 0,
-                changePercent: changePercent
+                changePercent: changePercent,
               };
             }
           });
@@ -155,7 +180,7 @@ export default function DataUploadPanel({
         } else {
         }
       } catch (e) {
-        console.error('Failed to fetch watchlist prices:', e);
+        console.error("Failed to fetch watchlist prices:", e);
       }
     };
 
@@ -178,11 +203,11 @@ export default function DataUploadPanel({
         const instrumentKeys = new Set(
           response.instruments
             .filter((inst) => inst.sessionLive)
-            .map((inst) => inst.instrumentKey)
+            .map((inst) => inst.instrumentKey),
         );
         setCalibratedInstruments(instrumentKeys);
       } catch (error) {
-        console.error('Failed to fetch calibrated instruments:', error);
+        console.error("Failed to fetch calibrated instruments:", error);
       }
     };
 
@@ -195,8 +220,8 @@ export default function DataUploadPanel({
   const validateToken = async (token: string) => {
     setTokenValidating(true);
     try {
-      const response = await fetch('/api/upstox/health', {
-        method: 'GET',
+      const response = await fetch("/api/upstox/health", {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -205,12 +230,12 @@ export default function DataUploadPanel({
       if (result.ok) {
         setUpstoxAccessToken(token);
         setUpstoxConnected(true);
-        localStorage.setItem('upstox-access-token', token);
+        localStorage.setItem("upstox-access-token", token);
         if (onUpstoxTokenChange) {
           onUpstoxTokenChange(token);
         }
       } else {
-        localStorage.removeItem('upstox-access-token');
+        localStorage.removeItem("upstox-access-token");
         setUpstoxAccessToken(null);
         setUpstoxConnected(false);
         if (onUpstoxTokenChange) {
@@ -218,7 +243,7 @@ export default function DataUploadPanel({
         }
       }
     } catch (e) {
-      localStorage.removeItem('upstox-access-token');
+      localStorage.removeItem("upstox-access-token");
       setUpstoxAccessToken(null);
       setUpstoxConnected(false);
     } finally {
@@ -246,15 +271,17 @@ export default function DataUploadPanel({
       const upstoxResponse = await fetch(
         `/api/upstox/instruments/search?query=${encodeURIComponent(query)}&exchange=NSE&segment=EQ`,
         {
-          method: 'GET',
+          method: "GET",
           headers: {
             Authorization: `Bearer ${upstoxAccessToken}`,
           },
-        }
+        },
       );
       const upstoxResult = await upstoxResponse.json();
-      
-      const rawItems = Array.isArray(upstoxResult.data) ? upstoxResult.data : upstoxResult.data?.data;
+
+      const rawItems = Array.isArray(upstoxResult.data)
+        ? upstoxResult.data
+        : upstoxResult.data?.data;
 
       if (upstoxResult.ok && rawItems && Array.isArray(rawItems)) {
         const instrumentsWithCompanyInfo = await Promise.all(
@@ -265,24 +292,31 @@ export default function DataUploadPanel({
               // Extract main brand name (first 1-2 words, removing common suffixes)
               const extractMainName = (name: string): string => {
                 // Remove corporate suffixes and clean up
-                const cleaned = name.replace(/\s+(LTD|LIMITED|LTD\.|PVT|PRIVATE|IND|INDUSTRIES|INFRA|INFRASTRUCTURE|CORP|CORPORATION|CO|COMPANY|SERVICES|HOLDINGS|INVESTMENTS|ENTERPRISES|TECHNOLOGIES|FINANCE|BANK|INSURANCE|CAPITAL|STEEL|POWER|ENERGY)$/gi, '').trim();
-                
-                const words = cleaned.split(' ');
+                const cleaned = name
+                  .replace(
+                    /\s+(LTD|LIMITED|LTD\.|PVT|PRIVATE|IND|INDUSTRIES|INFRA|INFRASTRUCTURE|CORP|CORPORATION|CO|COMPANY|SERVICES|HOLDINGS|INVESTMENTS|ENTERPRISES|TECHNOLOGIES|FINANCE|BANK|INSURANCE|CAPITAL|STEEL|POWER|ENERGY)$/gi,
+                    "",
+                  )
+                  .trim();
+
+                const words = cleaned.split(" ");
                 // For long names, take first 2 words as the brand
                 if (words.length > 2) {
-                  return words.slice(0, 2).join(' ');
+                  return words.slice(0, 2).join(" ");
                 }
                 return cleaned;
               };
 
               const mainName = extractMainName(inst.name);
-              const symbolOnly = inst.trading_symbol.split('-')[0].split('_')[0]; // Remove segment/series suffixes
+              const symbolOnly = inst.trading_symbol
+                .split("-")[0]
+                .split("_")[0]; // Remove segment/series suffixes
               const queries = [mainName, symbolOnly, inst.name].filter(Boolean);
 
               for (const query of queries) {
                 try {
                   const clearbitResponse = await fetch(
-                    `/api/clearbit/companies/suggest?query=${encodeURIComponent(query)}`
+                    `/api/clearbit/companies/suggest?query=${encodeURIComponent(query)}`,
                   );
                   const data = await clearbitResponse.json();
 
@@ -290,8 +324,7 @@ export default function DataUploadPanel({
                     clearbitData = data;
                     break;
                   }
-                } catch (e) {
-                }
+                } catch (e) {}
               }
 
               if (clearbitData && clearbitData.length > 0) {
@@ -300,10 +333,15 @@ export default function DataUploadPanel({
                 return inst;
               }
             } catch (clearbitError) {
-              console.warn('Clearbit search failed for', inst.name, ':', clearbitError);
+              console.warn(
+                "Clearbit search failed for",
+                inst.name,
+                ":",
+                clearbitError,
+              );
               return inst;
             }
-          })
+          }),
         );
         setInstrumentSuggestions(instrumentsWithCompanyInfo);
         setShowSuggestions(true);
@@ -314,7 +352,7 @@ export default function DataUploadPanel({
         return [];
       }
     } catch (e) {
-      console.error('Instrument search failed:', e);
+      console.error("Instrument search failed:", e);
       setInstrumentSuggestions([]);
       setShowSuggestions(false);
       return [];
@@ -344,16 +382,22 @@ export default function DataUploadPanel({
   };
 
   const addToWatchlist = (instrument: any) => {
-    if (!watchlist.find((item) => item.instrument_key === instrument.instrument_key)) {
+    if (
+      !watchlist.find(
+        (item) => item.instrument_key === instrument.instrument_key,
+      )
+    ) {
       setWatchlist([...watchlist, instrument]);
     }
-    setWatchlistSearchQuery('');
+    setWatchlistSearchQuery("");
     setWatchlistSuggestions([]);
     setShowWatchlistSuggestions(false);
   };
 
   const removeFromWatchlist = (instrumentKey: string) => {
-    setWatchlist(watchlist.filter((item) => item.instrument_key !== instrumentKey));
+    setWatchlist(
+      watchlist.filter((item) => item.instrument_key !== instrumentKey),
+    );
   };
 
   const handleSelectInstrument = (instrument: any) => {
@@ -374,7 +418,9 @@ export default function DataUploadPanel({
 
   const handleImportFromUpstox = async () => {
     if (!instrumentKey || !startDate || !endDate || !upstoxAccessToken) {
-      setError('Please select instrument, configure Upstox, and choose date range');
+      setError(
+        "Please select instrument, configure Upstox, and choose date range",
+      );
       return;
     }
 
@@ -382,7 +428,7 @@ export default function DataUploadPanel({
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) {
-      setError('Start date must be before end date');
+      setError("Start date must be before end date");
       return;
     }
 
@@ -411,7 +457,7 @@ export default function DataUploadPanel({
       // Fetch data for each day
       for (let i = 0; i < dates.length; i++) {
         const date = dates[i];
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.toISOString().split("T")[0];
         const progress = 10 + (i / dates.length) * 70;
         setImportProgress(progress);
 
@@ -419,11 +465,11 @@ export default function DataUploadPanel({
           const response = await fetch(
             `/api/upstox/historical-candle?instrumentKey=${encodeURIComponent(instrumentKey)}&interval=${interval}&toDate=${dateStr}&fromDate=${dateStr}`,
             {
-              method: 'GET',
+              method: "GET",
               headers: {
                 Authorization: `Bearer ${upstoxAccessToken}`,
               },
-            }
+            },
           );
 
           const result = await response.json();
@@ -431,8 +477,9 @@ export default function DataUploadPanel({
           if (result.ok) {
             // Robust parsing for different possible Upstox response structures (v2/v3)
             const responseData = result.data || {};
-            const candleList = responseData.data?.candles || responseData.candles || [];
-            
+            const candleList =
+              responseData.data?.candles || responseData.candles || [];
+
             if (candleList.length > 0) {
               const dayCandles = candleList.map((candle: any) => ({
                 timestamp: new Date(candle[0]),
@@ -448,14 +495,13 @@ export default function DataUploadPanel({
             }
           } else {
           }
-        } catch (dayError) {
-        }
+        } catch (dayError) {}
       }
 
       setImportProgress(85);
 
       if (allCandles.length === 0) {
-        setError('No data found for the selected parameters');
+        setError("No data found for the selected parameters");
         setImportModalOpen(false);
         return;
       }
@@ -465,18 +511,23 @@ export default function DataUploadPanel({
 
       setImportProgress(95);
 
-      const logo = selectedInstrument?.company?.domain 
+      const logo = selectedInstrument?.company?.domain
         ? `https://www.google.com/s2/favicons?domain=${selectedInstrument.company.domain}&sz=32`
-        : '';
+        : "";
       const name = selectedInstrument?.name || instrumentQuery || instrumentKey;
 
       onDataUpload(allCandles, logo, name);
-      setFileName(`${instrumentQuery || instrumentKey} (${startDate} to ${endDate})`);
+      setFileName(
+        `${instrumentQuery || instrumentKey} (${startDate} to ${endDate})`,
+      );
 
       setImportProgress(100);
       setTimeout(() => setImportModalOpen(false), 1000);
     } catch (e) {
-      setError('Failed to import data from Upstox: ' + (e instanceof Error ? e.message : 'Unknown error'));
+      setError(
+        "Failed to import data from Upstox: " +
+          (e instanceof Error ? e.message : "Unknown error"),
+      );
       setImportModalOpen(false);
     } finally {
       setLoading(false);
@@ -494,7 +545,8 @@ export default function DataUploadPanel({
 
     try {
       // Use streaming parser for large files
-      if (file.size > 5 * 1024 * 1024) { // If file > 5MB, use streaming
+      if (file.size > 5 * 1024 * 1024) {
+        // If file > 5MB, use streaming
         const candles = await parseCSVStreaming(file, (progress, data) => {
           setUploadProgress(progress);
           onDataUpload(data); // Stream data as it's parsed
@@ -508,8 +560,8 @@ export default function DataUploadPanel({
         onDataUpload(candles);
       }
     } catch (err) {
-      console.error('DataUploadPanel error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to parse CSV');
+      console.error("DataUploadPanel error:", err);
+      setError(err instanceof Error ? err.message : "Failed to parse CSV");
       setFileName(null);
       setUploadProgress(0);
     } finally {
@@ -524,7 +576,7 @@ export default function DataUploadPanel({
         <h2 className="text-base font-semibold text-foreground mb-3">Data Upload</h2>
       */}
 
-      {mode === 'backtest' && false && (
+      {mode === "backtest" && false && (
         <>
           <div
             className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary hover:bg-secondary/50 transition-all"
@@ -551,16 +603,20 @@ export default function DataUploadPanel({
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">{uploadProgress}% complete</p>
+                <p className="text-xs text-muted-foreground">
+                  {uploadProgress}% complete
+                </p>
               </div>
             ) : (
               <>
                 <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-foreground font-medium">
-                  {fileName ? `Loaded: ${fileName}` : 'Click to upload CSV'}
+                  {fileName ? `Loaded: ${fileName}` : "Click to upload CSV"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {fileName ? 'Click to change file' : 'OHLCV data format required'}
+                  {fileName
+                    ? "Click to change file"
+                    : "OHLCV data format required"}
                 </p>
               </>
             )}
@@ -587,18 +643,20 @@ export default function DataUploadPanel({
 
       {/* API Integration */}
       <div className="mt-4 pt-3 border-t border-border">
-        <p className="text-xs font-medium text-foreground mb-2">API Integration</p>
+        <p className="text-xs font-medium text-foreground mb-2">
+          API Integration
+        </p>
         {!upstoxConnected ? (
           <UpstoxConfigDialog onConfigured={handleUpstoxConfigured} />
         ) : (
           <div className="flex items-center justify-between">
             <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
               <span className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full"></span>
-              {tokenValidating ? 'Validating...' : 'Connected to Upstox'}
+              {tokenValidating ? "Validating..." : "Connected to Upstox"}
             </p>
             <button
               onClick={() => {
-                localStorage.removeItem('upstox-access-token');
+                localStorage.removeItem("upstox-access-token");
                 setUpstoxAccessToken(null);
                 setUpstoxConnected(false);
               }}
@@ -614,23 +672,30 @@ export default function DataUploadPanel({
       </div>
 
       {/* Upstox Search and Import - Historical Mode */}
-      {upstoxConnected && mode === 'backtest' && (
+      {upstoxConnected && mode === "backtest" && (
         <div className="mt-6 pt-4 border-t border-border">
-          <p className="text-sm font-medium text-foreground mb-3">Import from Upstox</p>
-          
+          <p className="text-sm font-medium text-foreground mb-3">
+            Import from Upstox
+          </p>
+
           <div className="space-y-3">
             {/* Instrument Search Autocomplete */}
             {!selectedInstrument ? (
               <div className="relative">
-                <label className="text-xs text-muted-foreground mb-1 block">Search Instrument</label>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Search Instrument
+                </label>
                 <div className="relative">
                   <input
                     type="text"
                     placeholder="Type stock name (e.g., RELIANCE, NIFTY)"
                     value={instrumentQuery}
-                    onChange={(e) => handleInstrumentQueryChange(e.target.value)}
+                    onChange={(e) =>
+                      handleInstrumentQueryChange(e.target.value)
+                    }
                     onFocus={() => {
-                      if (instrumentSuggestions.length > 0) setShowSuggestions(true);
+                      if (instrumentSuggestions.length > 0)
+                        setShowSuggestions(true);
                     }}
                     className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background pr-8"
                     disabled={loading}
@@ -638,8 +703,8 @@ export default function DataUploadPanel({
                   {instrumentQuery && (
                     <button
                       onClick={() => {
-                        setInstrumentQuery('');
-                        setInstrumentKey('');
+                        setInstrumentQuery("");
+                        setInstrumentKey("");
                         setInstrumentSuggestions([]);
                       }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -664,33 +729,51 @@ export default function DataUploadPanel({
                           <div className="flex items-center gap-3">
                             {inst.company?.logo || inst.company?.domain ? (
                               <img
-                                src={inst.company.logo || `https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=64`}
+                                src={
+                                  inst.company.logo ||
+                                  `https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=64`
+                                }
                                 alt={inst.name}
                                 className="w-8 h-8 flex-shrink-0 object-contain"
                                 onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.style.display = "none";
                                 }}
                               />
                             ) : (
                               <div className="w-8 h-8 bg-secondary flex items-center justify-center flex-shrink-0">
-                                <span className="text-muted-foreground font-semibold text-lg">{inst.trading_symbol?.[0] || '?'}</span>
+                                <span className="text-muted-foreground font-semibold text-lg">
+                                  {inst.trading_symbol?.[0] || "?"}
+                                </span>
                               </div>
                             )}
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                               <div className="flex items-baseline justify-between mb-0.5">
                                 <div className="font-bold text-foreground tracking-tight truncate">
-                                  {highlightMatch(inst.trading_symbol, instrumentQuery)}
+                                  {highlightMatch(
+                                    inst.trading_symbol,
+                                    instrumentQuery,
+                                  )}
                                 </div>
-                                {inst.lot_size && <div className="text-[10px] text-muted-foreground ml-2">Lot: {inst.lot_size}</div>}
+                                {inst.lot_size && (
+                                  <div className="text-[10px] text-muted-foreground ml-2">
+                                    Lot: {inst.lot_size}
+                                  </div>
+                                )}
                               </div>
                               <div className="text-xs text-muted-foreground truncate opacity-90">
                                 {highlightMatch(inst.name, instrumentQuery)}
                               </div>
                               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] uppercase font-bold tracking-wider">{inst.exchange}</span>
-                                <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.segment}</span>
+                                <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] uppercase font-bold tracking-wider">
+                                  {inst.exchange}
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">
+                                  {inst.segment}
+                                </span>
                                 {inst.instrument_type && (
-                                  <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.instrument_type}</span>
+                                  <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">
+                                    {inst.instrument_type}
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -710,25 +793,33 @@ export default function DataUploadPanel({
                       alt={selectedInstrument.name}
                       className="w-8 h-8 rounded-md flex-shrink-0"
                       onError={(e) => {
-                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.style.display = "none";
                       }}
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-foreground text-sm">{selectedInstrument.trading_symbol}</div>
-                    <div className="text-xs text-muted-foreground truncate">{selectedInstrument.name}</div>
+                    <div className="font-semibold text-foreground text-sm">
+                      {selectedInstrument.trading_symbol}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {selectedInstrument.name}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       <span className="inline-flex items-center gap-1">
-                        <span className="px-1.5 py-0.5 bg-background rounded text-xs font-medium">{selectedInstrument.exchange}</span>
-                        <span className="px-1.5 py-0.5 bg-background rounded text-xs font-medium">{selectedInstrument.segment}</span>
+                        <span className="px-1.5 py-0.5 bg-background rounded text-xs font-medium">
+                          {selectedInstrument.exchange}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-background rounded text-xs font-medium">
+                          {selectedInstrument.segment}
+                        </span>
                       </span>
                     </div>
                   </div>
                   <button
                     onClick={() => {
                       setSelectedInstrument(null);
-                      setInstrumentKey('');
-                      setInstrumentQuery('');
+                      setInstrumentKey("");
+                      setInstrumentQuery("");
                       setInstrumentSuggestions([]);
                     }}
                     className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 border border-border rounded hover:bg-background"
@@ -742,7 +833,9 @@ export default function DataUploadPanel({
             {/* Date Range Selection */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Start Date</label>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Start Date
+                </label>
                 <input
                   type="date"
                   value={startDate}
@@ -751,7 +844,8 @@ export default function DataUploadPanel({
                     if (onImportContextChange && instrumentKey) {
                       onImportContextChange({
                         instrumentKey,
-                        instrumentName: selectedInstrument?.name || instrumentQuery,
+                        instrumentName:
+                          selectedInstrument?.name || instrumentQuery,
                         startDate: e.target.value,
                         endDate,
                       });
@@ -762,7 +856,9 @@ export default function DataUploadPanel({
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">End Date</label>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  End Date
+                </label>
                 <input
                   type="date"
                   value={endDate}
@@ -771,7 +867,8 @@ export default function DataUploadPanel({
                     if (onImportContextChange && instrumentKey) {
                       onImportContextChange({
                         instrumentKey,
-                        instrumentName: selectedInstrument?.name || instrumentQuery,
+                        instrumentName:
+                          selectedInstrument?.name || instrumentQuery,
                         startDate,
                         endDate: e.target.value,
                       });
@@ -785,7 +882,9 @@ export default function DataUploadPanel({
 
             {/* Interval Selection */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Interval</label>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Interval
+              </label>
               <select
                 value={interval}
                 onChange={(e) => setIntervalValue(e.target.value)}
@@ -806,21 +905,23 @@ export default function DataUploadPanel({
               disabled={loading || !instrumentKey || !startDate || !endDate}
               className="w-full px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? 'Importing...' : 'Import Data'}
+              {loading ? "Importing..." : "Import Data"}
             </button>
           </div>
         </div>
       )}
 
       {/* Watchlist - Realtime Mode */}
-      {upstoxConnected && mode === 'realtime' && (
+      {upstoxConnected && mode === "realtime" && (
         <div className="mt-6 pt-4 border-t border-border">
           <p className="text-sm font-medium text-foreground mb-3">Watchlist</p>
-          
+
           <div className="space-y-3">
             {/* Add to Watchlist Search */}
             <div className="relative">
-              <label className="text-xs text-muted-foreground mb-1 block">Add Stock to Watchlist</label>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Add Stock to Watchlist
+              </label>
               <div className="relative">
                 <input
                   type="text"
@@ -828,14 +929,15 @@ export default function DataUploadPanel({
                   value={watchlistSearchQuery}
                   onChange={(e) => handleWatchlistSearchChange(e.target.value)}
                   onFocus={() => {
-                    if (watchlistSuggestions.length > 0) setShowWatchlistSuggestions(true);
+                    if (watchlistSuggestions.length > 0)
+                      setShowWatchlistSuggestions(true);
                   }}
                   className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background pr-8"
                 />
                 {watchlistSearchQuery && (
                   <button
                     onClick={() => {
-                      setWatchlistSearchQuery('');
+                      setWatchlistSearchQuery("");
                       setWatchlistSuggestions([]);
                       setShowWatchlistSuggestions(false);
                     }}
@@ -844,58 +946,81 @@ export default function DataUploadPanel({
                     ×
                   </button>
                 )}
-                {showWatchlistSuggestions && watchlistSuggestions && watchlistSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl max-h-80 overflow-y-auto divide-y divide-border/50 ring-1 ring-border shadow-primary/5">
-                    {watchlistSuggestions.map((inst, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          addToWatchlist(inst);
-                        }}
-                        className="w-full relative px-3 py-2 text-left text-sm hover:bg-secondary/60 focus:bg-secondary/60 focus:outline-none transition-all group overflow-hidden"
-                      >
-                        <div className="absolute inset-y-0 left-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex items-center gap-3">
-                          {inst.company?.logo || inst.company?.domain ? (
-                            <img
-                              src={inst.company.logo || `https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=64`}
-                              alt={inst.name}
-                              className="w-8 h-8 flex-shrink-0 object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-8 h-8 bg-secondary flex items-center justify-center flex-shrink-0">
-                              <span className="text-muted-foreground font-semibold text-lg">{inst.trading_symbol?.[0] || '?'}</span>
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <div className="flex items-baseline justify-between mb-0.5">
-                              <div className="font-bold text-foreground tracking-tight truncate">
-                                {highlightMatch(inst.trading_symbol, watchlistSearchQuery)}
+                {showWatchlistSuggestions &&
+                  watchlistSuggestions &&
+                  watchlistSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl max-h-80 overflow-y-auto divide-y divide-border/50 ring-1 ring-border shadow-primary/5">
+                      {watchlistSuggestions.map((inst, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            addToWatchlist(inst);
+                          }}
+                          className="w-full relative px-3 py-2 text-left text-sm hover:bg-secondary/60 focus:bg-secondary/60 focus:outline-none transition-all group overflow-hidden"
+                        >
+                          <div className="absolute inset-y-0 left-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <div className="flex items-center gap-3">
+                            {inst.company?.logo || inst.company?.domain ? (
+                              <img
+                                src={
+                                  inst.company.logo ||
+                                  `https://www.google.com/s2/favicons?domain=${inst.company.domain}&sz=64`
+                                }
+                                alt={inst.name}
+                                className="w-8 h-8 flex-shrink-0 object-contain"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                            ) : (
+                              <div className="w-8 h-8 bg-secondary flex items-center justify-center flex-shrink-0">
+                                <span className="text-muted-foreground font-semibold text-lg">
+                                  {inst.trading_symbol?.[0] || "?"}
+                                </span>
                               </div>
-                              {inst.lot_size && <div className="text-[10px] text-muted-foreground ml-2">Lot: {inst.lot_size}</div>}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate opacity-90">
-                              {highlightMatch(inst.name, watchlistSearchQuery)}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] uppercase font-bold tracking-wider">{inst.exchange}</span>
-                              <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.segment}</span>
-                              {inst.instrument_type && (
-                                <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">{inst.instrument_type}</span>
-                              )}
+                            )}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                              <div className="flex items-baseline justify-between mb-0.5">
+                                <div className="font-bold text-foreground tracking-tight truncate">
+                                  {highlightMatch(
+                                    inst.trading_symbol,
+                                    watchlistSearchQuery,
+                                  )}
+                                </div>
+                                {inst.lot_size && (
+                                  <div className="text-[10px] text-muted-foreground ml-2">
+                                    Lot: {inst.lot_size}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate opacity-90">
+                                {highlightMatch(
+                                  inst.name,
+                                  watchlistSearchQuery,
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] uppercase font-bold tracking-wider">
+                                  {inst.exchange}
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">
+                                  {inst.segment}
+                                </span>
+                                {inst.instrument_type && (
+                                  <span className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-semibold">
+                                    {inst.instrument_type}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
               </div>
             </div>
 
@@ -904,17 +1029,24 @@ export default function DataUploadPanel({
               <div className="space-y-1">
                 {watchlist.map((item) => {
                   const priceData = watchlistPrices[item.instrument_key];
-                  const isSelected = selectedWatchlistStock?.instrument_key === item.instrument_key;
-                  const priceColor = priceData?.changePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
-                  const isCalibrated = calibratedInstruments.has(item.instrument_key);
+                  const isSelected =
+                    selectedWatchlistStock?.instrument_key ===
+                    item.instrument_key;
+                  const priceColor =
+                    priceData?.changePercent >= 0
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400";
+                  const isCalibrated = calibratedInstruments.has(
+                    item.instrument_key,
+                  );
 
                   return (
                     <div
                       key={item.instrument_key}
                       className={`flex items-center gap-2 p-2 rounded-md border transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-gradient-to-r from-primary/15 to-primary/5 border-primary/50 shadow-sm'
-                          : 'bg-secondary/10 border-border hover:bg-secondary/20 hover:border-border/50'
+                          ? "bg-gradient-to-r from-primary/15 to-primary/5 border-primary/50 shadow-sm"
+                          : "bg-secondary/10 border-border hover:bg-secondary/20 hover:border-border/50"
                       }`}
                       onClick={() => {
                         setSelectedWatchlistStock(item);
@@ -929,13 +1061,15 @@ export default function DataUploadPanel({
                           alt={item.name}
                           className="w-8 h-8 rounded flex-shrink-0"
                           onError={(e) => {
-                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.style.display = "none";
                           }}
                         />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
-                          <div className="font-semibold text-xs text-foreground">{item.trading_symbol}</div>
+                          <div className="font-semibold text-xs text-foreground">
+                            {item.trading_symbol}
+                          </div>
                           {isCalibrated ? (
                             <div title="Calibrated">
                               <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
@@ -946,25 +1080,35 @@ export default function DataUploadPanel({
                             </div>
                           )}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">{item.name}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {item.name}
+                        </div>
                       </div>
                       <div className="text-right flex-shrink-0 min-w-[90px]">
                         {priceData ? (
                           <>
-                            <div className={`font-semibold text-sm ${priceColor}`}>
+                            <div
+                              className={`font-semibold text-sm ${priceColor}`}
+                            >
                               ₹{priceData.ltp.toFixed(2)}
                             </div>
-                            <div className={`flex items-center justify-end gap-0.5 text-[10px] font-medium ${priceColor}`}>
+                            <div
+                              className={`flex items-center justify-end gap-0.5 text-[10px] font-medium ${priceColor}`}
+                            >
                               <span className="px-1 py-0.5 rounded bg-current/10">
-                                {priceData.change >= 0 ? '+' : ''}{priceData.change.toFixed(2)}
+                                {priceData.change >= 0 ? "+" : ""}
+                                {priceData.change.toFixed(2)}
                               </span>
                               <span>
-                                ({priceData.changePercent >= 0 ? '+' : ''}{priceData.changePercent.toFixed(2)}%)
+                                ({priceData.changePercent >= 0 ? "+" : ""}
+                                {priceData.changePercent.toFixed(2)}%)
                               </span>
                             </div>
                           </>
                         ) : (
-                          <div className="text-[10px] text-muted-foreground font-medium animate-pulse">Loading...</div>
+                          <div className="text-[10px] text-muted-foreground font-medium animate-pulse">
+                            Loading...
+                          </div>
                         )}
                       </div>
                       <button
@@ -982,7 +1126,8 @@ export default function DataUploadPanel({
               </div>
             ) : (
               <p className="text-xs text-muted-foreground text-center py-4">
-                No stocks in watchlist. Add stocks to see realtime prices and market depth.
+                No stocks in watchlist. Add stocks to see realtime prices and
+                market depth.
               </p>
             )}
           </div>
@@ -990,16 +1135,19 @@ export default function DataUploadPanel({
       )}
 
       {/* Market Depth Display - Historical Mode */}
-      {upstoxConnected && mode === 'backtest' && instrumentKey && upstoxAccessToken && (
-        <div className="mt-4">
-          <MarketDepth
-            accessToken={upstoxAccessToken}
-            instrumentKey={instrumentKey}
-            mode="full_d30"
-            enabled={false}
-          />
-        </div>
-      )}
+      {upstoxConnected &&
+        mode === "backtest" &&
+        instrumentKey &&
+        upstoxAccessToken && (
+          <div className="mt-4">
+            <MarketDepth
+              accessToken={upstoxAccessToken}
+              instrumentKey={instrumentKey}
+              mode="full_d30"
+              enabled={false}
+            />
+          </div>
+        )}
 
       {/* Import Progress Modal */}
       {importModalOpen && (
@@ -1014,10 +1162,13 @@ export default function DataUploadPanel({
                 />
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                {importProgress < 30 ? 'Connecting to Upstox...' :
-                 importProgress < 70 ? 'Fetching historical data...' :
-                 importProgress < 90 ? 'Processing data...' :
-                 'Complete!'}
+                {importProgress < 30
+                  ? "Connecting to Upstox..."
+                  : importProgress < 70
+                    ? "Fetching historical data..."
+                    : importProgress < 90
+                      ? "Processing data..."
+                      : "Complete!"}
               </p>
             </div>
           </div>

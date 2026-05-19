@@ -1,16 +1,20 @@
-'use client';
+"use client";
 
-import { BarChart3, Settings } from 'lucide-react';
-import StatusIndicator from './StatusIndicator';
-import ClientDropdown from './ClientDropdown';
-import RiskProfileDropdown from './RiskProfileDropdown';
-import RuntimeTuningProfileDropdown from './RuntimeTuningProfileDropdown';
-import { Client } from '@/lib/types';
-import { RiskProfileResponse, RuntimeTuningProfile, RuntimeTuningProfileRequest } from '@/lib/vwap-server-types';
+import { BarChart3, Settings } from "lucide-react";
+import StatusIndicator from "./StatusIndicator";
+import ClientDropdown from "./ClientDropdown";
+import RiskProfileDropdown from "./RiskProfileDropdown";
+import RuntimeTuningProfileDropdown from "./RuntimeTuningProfileDropdown";
+import { Client } from "@/lib/types";
+import {
+  RiskProfileResponse,
+  RuntimeTuningProfile,
+  RuntimeTuningProfileRequest,
+} from "@/lib/vwap-server-types";
 
 interface HeaderProps {
-  chartTimeframeMode?: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
-  onTimeframeChange?: (mode: 'ALL' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR') => void;
+  chartTimeframeMode?: "ALL" | "DAY" | "WEEK" | "MONTH" | "YEAR";
+  onTimeframeChange?: (mode: "ALL" | "DAY" | "WEEK" | "MONTH" | "YEAR") => void;
   selectedClient: Client | null;
   clients: Client[];
   onSelectClient: (client: Client) => void;
@@ -25,12 +29,15 @@ interface HeaderProps {
   tuningProfiles?: RuntimeTuningProfile[];
   selectedTuningProfileId?: number;
   onSelectTuningProfile?: (profile: RuntimeTuningProfile) => void;
-  onSaveTuningProfile?: (request: RuntimeTuningProfileRequest, id?: number) => void;
+  onSaveTuningProfile?: (
+    request: RuntimeTuningProfileRequest,
+    id?: number,
+  ) => void;
   onDeleteTuningProfile?: (id: number) => void;
 }
 
-export default function Header({ 
-  chartTimeframeMode = 'ALL', 
+export default function Header({
+  chartTimeframeMode = "ALL",
   onTimeframeChange,
   selectedClient,
   clients,
@@ -66,7 +73,7 @@ export default function Header({
 
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3 border-r border-border pr-6">
-          <ClientDropdown 
+          <ClientDropdown
             selectedClient={selectedClient}
             clients={clients}
             onSelect={onSelectClient}
@@ -75,7 +82,7 @@ export default function Header({
             riskProfiles={riskProfiles}
           />
           {onChangeRiskProfile && onSaveRiskProfile && (
-            <RiskProfileDropdown 
+            <RiskProfileDropdown
               profiles={riskProfiles}
               activeProfileId={activeRiskProfileId}
               onSelect={onChangeRiskProfile}

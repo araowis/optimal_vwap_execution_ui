@@ -3,7 +3,8 @@
  * Handles communication with the Java Spring Boot backend running on localhost:8080
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export interface SummaryStats {
   totalShares: number;
@@ -97,21 +98,26 @@ class BackendService {
     this.baseUrl = baseUrl;
   }
 
-  private async fetch(endpoint: string, options?: RequestInit): Promise<Response> {
+  private async fetch(
+    endpoint: string,
+    options?: RequestInit,
+  ): Promise<Response> {
     const url = `${this.baseUrl}${endpoint}`;
     try {
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...options?.headers,
         },
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Backend API error: ${response.status} ${response.statusText}`,
+        );
       }
-      
+
       return response;
     } catch (error) {
       console.error(`Failed to fetch ${url}:`, error);
@@ -123,7 +129,7 @@ class BackendService {
    * Get summary statistics across all trading days
    */
   async getSummary(): Promise<SummaryStats> {
-    const response = await this.fetch('/api/summary');
+    const response = await this.fetch("/api/summary");
     return response.json();
   }
 
@@ -131,7 +137,7 @@ class BackendService {
    * Get daily results for all trading days
    */
   async getDailyResults(): Promise<DailyResult[]> {
-    const response = await this.fetch('/api/daily');
+    const response = await this.fetch("/api/daily");
     return response.json();
   }
 
@@ -147,7 +153,7 @@ class BackendService {
    * Get cumulative P&L
    */
   async getPnL(): Promise<{ labels: string[]; cumulativePnL: number[] }> {
-    const response = await this.fetch('/api/pnl');
+    const response = await this.fetch("/api/pnl");
     return response.json();
   }
 
@@ -155,7 +161,7 @@ class BackendService {
    * Get pretrade analysis
    */
   async getPretrade(): Promise<any> {
-    const response = await this.fetch('/api/pretrade');
+    const response = await this.fetch("/api/pretrade");
     return response.json();
   }
 
@@ -171,8 +177,8 @@ class BackendService {
    * Run strategy with custom parameters
    */
   async runStrategy(params: StrategyParams): Promise<StrategyResult> {
-    const response = await this.fetch('/api/run-strategy', {
-      method: 'POST',
+    const response = await this.fetch("/api/run-strategy", {
+      method: "POST",
       body: JSON.stringify(params),
     });
     return response.json();
@@ -187,9 +193,9 @@ class BackendService {
     lambda: number;
     totalQty: number;
     dates: string[];
-  }): Promise<import('./types').BacktestApiResponse> {
-    const response = await this.fetch('/api/backtest', {
-      method: 'POST',
+  }): Promise<import("./types").BacktestApiResponse> {
+    const response = await this.fetch("/api/backtest", {
+      method: "POST",
       body: JSON.stringify(request),
     });
     return response.json();
@@ -206,8 +212,14 @@ class BackendService {
   /**
    * Get bin allocation based on volume curve
    */
-  async getBinAllocation(date: string, bins: number = 10, quantity: number = 10000): Promise<BinAllocation> {
-    const response = await this.fetch(`/api/bin-allocation?date=${date}&bins=${bins}&quantity=${quantity}`);
+  async getBinAllocation(
+    date: string,
+    bins: number = 10,
+    quantity: number = 10000,
+  ): Promise<BinAllocation> {
+    const response = await this.fetch(
+      `/api/bin-allocation?date=${date}&bins=${bins}&quantity=${quantity}`,
+    );
     return response.json();
   }
 
@@ -224,7 +236,7 @@ class BackendService {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.fetch('/api/summary');
+      await this.fetch("/api/summary");
       return true;
     } catch (error) {
       return false;

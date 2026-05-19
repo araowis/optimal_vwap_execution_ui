@@ -1,11 +1,11 @@
 /**
  * Java Backend Integration Guide
- * 
+ *
  * This file provides the structure for integrating with a Java backend
  * for advanced backtest execution and real-time market data.
  */
 
-import { BacktestConfig, StrategyParams, WSMessage } from './types';
+import { BacktestConfig, StrategyParams, WSMessage } from "./types";
 
 /**
  * BackendClient - Handles all communication with Java backend
@@ -16,7 +16,10 @@ export class BackendClient {
   private ws: WebSocket | null = null;
   private messageHandlers: Map<string, (data: any) => void> = new Map();
 
-  constructor(baseUrl: string = 'http://localhost:4567', wsUrl: string = 'ws://localhost:4567') {
+  constructor(
+    baseUrl: string = "http://localhost:4567",
+    wsUrl: string = "ws://localhost:4567",
+  ) {
     this.baseUrl = baseUrl;
     this.wsUrl = wsUrl;
   }
@@ -37,9 +40,9 @@ export class BackendClient {
     enableTxCosts: boolean;
   }): Promise<any> {
     const response = await fetch(`${this.baseUrl}/api/run-strategy`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(params),
     });
@@ -145,8 +148,14 @@ export class BackendClient {
   /**
    * Get bin allocation
    */
-  async getBinAllocation(date: string, bins: number, quantity: number): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/bin-allocation?date=${date}&bins=${bins}&quantity=${quantity}`);
+  async getBinAllocation(
+    date: string,
+    bins: number,
+    quantity: number,
+  ): Promise<any> {
+    const response = await fetch(
+      `${this.baseUrl}/api/bin-allocation?date=${date}&bins=${bins}&quantity=${quantity}`,
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to fetch bin allocation: ${response.statusText}`);
@@ -162,7 +171,9 @@ export class BackendClient {
     const response = await fetch(`${this.baseUrl}/api/corrections/${date}`);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch correction logs: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch correction logs: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -173,13 +184,13 @@ export class BackendClient {
    */
   connectWebSocket(
     onMessage: (message: WSMessage) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
   ): void {
     try {
       this.ws = new WebSocket(`${this.wsUrl}/ws`);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected to Java backend');
+        console.log("WebSocket connected to Java backend");
       };
 
       this.ws.onmessage = (event) => {
@@ -192,11 +203,11 @@ export class BackendClient {
       };
 
       this.ws.onerror = (event) => {
-        onError(new Error('WebSocket error occurred'));
+        onError(new Error("WebSocket error occurred"));
       };
 
       this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
+        console.log("WebSocket disconnected");
       };
     } catch (e) {
       onError(new Error(`Failed to connect WebSocket: ${e}`));
@@ -220,60 +231,60 @@ export class BackendClient {
     const response = await fetch(`${this.baseUrl}/`);
 
     if (!response.ok) {
-      throw new Error('Backend health check failed');
+      throw new Error("Backend health check failed");
     }
 
-    return { status: 'ok', version: '1.0.0' };
+    return { status: "ok", version: "1.0.0" };
   }
 }
 
 /**
  * Expected Java Backend API Endpoints (WebDashboard.java)
- * 
+ *
  * GET /api/summary
  * - Output: Summary statistics
- * 
+ *
  * GET /api/daily
  * - Output: Daily results array
- * 
+ *
  * GET /api/chart/:date
  * - Output: Chart data for specific date
- * 
+ *
  * GET /api/pnl
  * - Output: Cumulative P&L data
- * 
+ *
  * GET /api/pretrade
  * - Output: Pretrade analysis
- * 
+ *
  * GET /api/execution/:date
  * - Output: Execution logs for specific date
- * 
+ *
  * POST /api/run-strategy
  * - Input: Strategy parameters
  * - Output: Execution results
- * 
+ *
  * GET /api/volume-curve/:date
  * - Output: Volume curve for specific date
- * 
+ *
  * GET /api/bin-allocation
  * - Input: date, bins, quantity
  * - Output: Bin allocation data
- * 
+ *
  * GET /api/corrections/:date
  * - Output: Correction logs for specific date
- * 
+ *
  * WS /ws
  * - Streams: Real-time updates
- * 
+ *
  * GET /
  * - Output: HTML dashboard
  */
 
 /**
  * Usage Example:
- * 
+ *
  * const client = new BackendClient('http://localhost:4567');
- * 
+ *
  * // Run strategy
  * const result = await client.runStrategy({
  *   date: '2026-01-02',
@@ -287,16 +298,16 @@ export class BackendClient {
  *   vwapWindowMinutes: 20,
  *   enableTxCosts: true
  * });
- * 
+ *
  * // Get summary
  * const summary = await client.getSummary();
- * 
+ *
  * // Get daily results
  * const daily = await client.getDailyResults();
- * 
+ *
  * // Get chart data
  * const chartData = await client.getChartData('2026-01-02');
- * 
+ *
  * // Connect WebSocket
  * client.connectWebSocket(
  *   (message) => {

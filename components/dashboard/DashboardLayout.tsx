@@ -1,4 +1,4 @@
-'use client';
+​'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './Header';
@@ -174,7 +174,7 @@ export default function DashboardLayout({
       defaultNBins: res.defaultNBins,
       effectiveLambda: res.effectiveLambda,
       effectiveNBins: res.effectiveNBins,
-      capitalLimit: res.capitalLimit,
+      // capitalLimit: res.capitalLimit,
       metadata,
       logo: metadata.logo,
       domain: metadata.domain,
@@ -477,13 +477,24 @@ export default function DashboardLayout({
   });
 
   // WebSocket for VWAP Server signals & calibration (Primary source)
+  //
+  // WS messages carry two SEPARATE fields:
+  //   msg.clientId   — bare client ID        e.g. "TRADER_DESK"
+  //   msg.instrument — bare instrument key   e.g. "NSE_EQ|INE040A01034"
+  //
+  // The analytics REST API and our local maps use a COMPOSITE key:
+  //   clientId::instrumentKey                e.g. "TRADER_DESK::NSE_EQ|INE040A01034"
+  //
+  // We build that composite on arrival so everything downstream is consistent.
   const { connected: vwapWsConnected, connecting: vwapWsConnecting } = useVwapWebSocket({
     autoConnect: true,
     handlers: {
       onSignal: (msg) => {
-        // console.log('Live Buy Signal received:', msg);
+        // Build composite key from the two separate WS fields
+        const compositeKey = `${msg.clientId}::${msg.instrument}`;
+
         const newSignal: BackendBuySignal = {
-          time: msg.marketTime.substring(0, 5), // Format HH:mm
+          time: msg.marketTime.substring(0, 5),
           execPrice: msg.ltp,
           executedQty: msg.qty,
           cumTarget: msg.cumTarget,
@@ -492,58 +503,59 @@ export default function DashboardLayout({
         };
 
         setSignalsMap(prev => {
-          const updatedSignals = [...(prev[msg.instrument] || []), newSignal];
-          const newMap = { ...prev, [msg.instrument]: updatedSignals };
-
-          // Persist to localStorage
+          const updatedSignals = [...(prev[compositeKey] || []), newSignal];
+          const newMap = { ...prev, [compositeKey]: updatedSignals };
           try {
             const today = new Date().toISOString().split('T')[0];
             localStorage.setItem(`vwap_signals_${today}`, JSON.stringify(newMap));
           } catch (e) {
             console.error('Failed to persist signals to localStorage', e);
           }
-
           return newMap;
         });
 
-        if (selectedWatchlistStock?.instrument_key === msg.instrument) {
+        // Only push to live feed when this message belongs to the selected client+instrument
+        const selectedKey = selectedClient && selectedWatchlistStock
+          ? `${selectedClient.id}::${selectedWatchlistStock.instrument_key}`
+          : null;
+        if (selectedKey && compositeKey === selectedKey) {
           setLiveBuySignals(prev => [...prev, newSignal]);
         }
       },
       onCalibration: (msg) => {
-        // console.log('Calibration update received:', msg);
-        setCalibrationMap(prev => ({
-          ...prev,
-          [msg.instrument]: msg
-        }));
+        const compositeKey = `${msg.clientId}::${msg.instrument}`;
 
-        if (selectedWatchlistStock?.instrument_key === msg.instrument && msg.currentVWAP > 0) {
+        setCalibrationMap(prev => ({ ...prev, [compositeKey]: msg }));
+
+        const selectedKey = selectedClient && selectedWatchlistStock
+          ? `${selectedClient.id}::${selectedWatchlistStock.instrument_key}`
+          : null;
+        if (selectedKey && compositeKey === selectedKey && msg.currentVWAP > 0) {
           setLiveCalibration(msg);
         }
       },
       onRegime: (msg) => {
-        // console.log('Regime change received:', msg);
-        if (selectedWatchlistStock?.instrument_key === msg.instrument) {
+        const compositeKey = `${msg.clientId}::${msg.instrument}`;
+        const selectedKey = selectedClient && selectedWatchlistStock
+          ? `${selectedClient.id}::${selectedWatchlistStock.instrument_key}`
+          : null;
+        if (selectedKey && compositeKey === selectedKey) {
           setLiveRegime(msg);
         }
       },
     }
   });
 
-  // Sync liveCalibration & liveBuySignals when selected stock changes or maps update
+  // Sync liveCalibration & liveBuySignals when selected client/stock changes or maps update.
+  // Always look up by composite key: clientId::instrumentKey
   useEffect(() => {
-    const key = selectedWatchlistStock?.instrument_key || importContext?.instrumentKey;
-    if (key) {
-      if (calibrationMap[key]) setLiveCalibration(calibrationMap[key]);
-      else setLiveCalibration(null);
+    const compositeKey = selectedClient && selectedWatchlistStock
+      ? `${selectedClient.id}::${selectedWatchlistStock.instrument_key}`
+      : importContext?.instrumentKey ?? null;
 
-      if (signalsMap[key]) setLiveBuySignals(signalsMap[key]);
-      else setLiveBuySignals([]);
-    } else {
-      setLiveCalibration(null);
-      setLiveBuySignals([]);
-    }
-  }, [selectedWatchlistStock, importContext, calibrationMap, signalsMap]);
+    setLiveCalibration(compositeKey ? (calibrationMap[compositeKey] ?? null) : null);
+    setLiveBuySignals(compositeKey ? (signalsMap[compositeKey] ?? []) : []);
+  }, [selectedClient, selectedWatchlistStock, importContext, calibrationMap, signalsMap]);
 
   // Load persisted signals on mount and cleanup old data
   useEffect(() => {
@@ -1158,7 +1170,7 @@ export default function DashboardLayout({
             onChartDataChange={setChartData}
             companyLogo={companyLogo}
             instrumentName={instrumentName}
-            instrumentKey={selectedWatchlistStock?.instrument_key}
+            instrumentKey={selectedClient && selectedWatchlistStock ? `${selectedClient.id}::${selectedWatchlistStock.instrument_key}` : undefined}
             timeframeMode={chartTimeframeMode}
             onTimeframeChange={setChartTimeframeMode}
             mode={mode as 'backtest' | 'realtime'}

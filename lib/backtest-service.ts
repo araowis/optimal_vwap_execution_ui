@@ -7,23 +7,26 @@ import {
   TranchExecution,
   FeeStructure,
   PerformanceMetrics,
-} from './types';
+} from "./types";
 import {
   calculateVWAP,
   calculateVWAPBands,
   calculateDeviation,
   aggregateCandles,
   detectBuySignals,
-} from './vwap-calculator';
-import { calculateVolumeBins, createVolumeProfile } from './volume-allocation';
+} from "./vwap-calculator";
+import { calculateVolumeBins, createVolumeProfile } from "./volume-allocation";
 import {
   calculateTransactionCost,
   calculateSlippage,
   calculateImplementationShortfall,
   calculateVWAPParticipation,
   DEFAULT_FEES,
-} from './transaction-costs';
-import { backendService, StrategyParams as BackendStrategyParams } from './backend-service';
+} from "./transaction-costs";
+import {
+  backendService,
+  StrategyParams as BackendStrategyParams,
+} from "./backend-service";
 
 /**
  * Main backtest execution service
@@ -38,7 +41,7 @@ export class BacktestService {
   constructor(
     candles: Candle[],
     params: StrategyParams,
-    fees: FeeStructure = DEFAULT_FEES
+    fees: FeeStructure = DEFAULT_FEES,
   ) {
     this.candles = candles;
     this.params = params;
@@ -58,7 +61,10 @@ export class BacktestService {
           return await this.runBackendBacktest();
         }
       } catch (error) {
-        console.warn('Backend not available, falling back to local calculations:', error);
+        console.warn(
+          "Backend not available, falling back to local calculations:",
+          error,
+        );
         this.useBackend = false;
       }
     }
@@ -71,13 +77,15 @@ export class BacktestService {
    * Run backtest using Java backend
    */
   private async runBackendBacktest(): Promise<BacktestResult> {
-    const dateStr = this.candles[0]?.timestamp.toISOString().split('T')[0] || new Date().toISOString().split('T')[0];
-    
+    const dateStr =
+      this.candles[0]?.timestamp.toISOString().split("T")[0] ||
+      new Date().toISOString().split("T")[0];
+
     const backendParams: BackendStrategyParams = {
       date: dateStr,
       quantity: this.params.totalQuantity,
       participation: this.params.participationRate || 0.05,
-      lambda: this.params.riskAversion || 0.10,
+      lambda: this.params.riskAversion || 0.1,
       sigma: this.params.volatility || 0.0012,
       bins: this.params.numTranches || 10,
       blend: 0.5,
@@ -87,14 +95,14 @@ export class BacktestService {
     };
 
     const result = await backendService.runStrategy(backendParams);
-    
+
     if (!result.success) {
-      throw new Error(result.error || 'Backend strategy execution failed');
+      throw new Error(result.error || "Backend strategy execution failed");
     }
 
     // Convert backend result to BacktestResult format
     const chartData = this.calculateChartData();
-    
+
     return {
       executedQuantity: this.params.totalQuantity,
       avgExecutionPrice: result.avgFillPrice || 0,
@@ -147,20 +155,24 @@ export class BacktestService {
       chartData.length > 0 ? chartData[0].vwapData.vwap : 0;
 
     // Calculate costs
-    const totalCost = calculateTransactionCost(executedQuantity, avgExecutionPrice, this.fees);
+    const totalCost = calculateTransactionCost(
+      executedQuantity,
+      avgExecutionPrice,
+      this.fees,
+    );
 
     // Calculate metrics
     const implementationShortfall = calculateImplementationShortfall(
       chartData[0]?.candle.close || avgExecutionPrice,
       avgExecutionPrice,
       executedQuantity,
-      totalCost.totalCost
+      totalCost.totalCost,
     );
 
     const vwapParticipation = calculateVWAPParticipation(
       avgExecutionPrice,
       Math.min(...chartData.map((d) => d.vwapData.vwap)),
-      Math.max(...chartData.map((d) => d.vwapData.vwap))
+      Math.max(...chartData.map((d) => d.vwapData.vwap)),
     );
 
     // Build tranche executions
@@ -179,9 +191,11 @@ export class BacktestService {
         ((avgExecutionPrice - vwapDuringExecution) / vwapDuringExecution) * 100,
       implementationShortfall,
       vwapParticipation,
-      effectiveSpread: totalCost.spreadCost / (executedQuantity * avgExecutionPrice),
+      effectiveSpread:
+        totalCost.spreadCost / (executedQuantity * avgExecutionPrice),
       executionEfficiency:
-        ((chartData[0]?.candle.close || avgExecutionPrice) - avgExecutionPrice) /
+        ((chartData[0]?.candle.close || avgExecutionPrice) -
+          avgExecutionPrice) /
         (chartData[0]?.candle.close || avgExecutionPrice),
       totalCost,
       maxAdverseExcursion: this.calculateMaxAdverseExcursion(chartData, trades),
@@ -198,7 +212,7 @@ export class BacktestService {
    * Calculate chart data with VWAP
    */
   private calculateChartData(): ChartDatapoint[] {
-    const aggregated = aggregateCandles(this.candles, 'MINUTE');
+    const aggregated = aggregateCandles(this.candles, "MINUTE");
 
     let vwapData = calculateVWAP(aggregated);
     vwapData = calculateVWAPBands(vwapData, 1.5);
@@ -207,7 +221,7 @@ export class BacktestService {
       const vwap = vwapData[index];
       const { absolute: devAbsolute, percentage: devPct } = calculateDeviation(
         candle.close,
-        vwap.vwap
+        vwap.vwap,
       );
 
       const volumeBins = calculateVolumeBins(candle, 10);
@@ -238,20 +252,26 @@ export class BacktestService {
 
     // Execute in tranches
     const quantityPerTranche = Math.floor(
-      this.params.totalQuantity / this.params.numTranches
+      this.params.totalQuantity / this.params.numTranches,
     );
 
     let trancheIndex = 0;
     let executedInTranche = 0;
 
-    for (let i = 0; i < chartData.length && executedQuantity < this.params.totalQuantity;) {
+    for (
+      let i = 0;
+      i < chartData.length && executedQuantity < this.params.totalQuantity;
+    ) {
       const datapoint = chartData[i];
 
-      if (datapoint.buySignal && datapoint.buySignal.signalStrength >= this.params.vwapDeviation) {
+      if (
+        datapoint.buySignal &&
+        datapoint.buySignal.signalStrength >= this.params.vwapDeviation
+      ) {
         // Execute trade
         const tradeQuantity = Math.min(
           quantityPerTranche - executedInTranche,
-          this.params.totalQuantity - executedQuantity
+          this.params.totalQuantity - executedQuantity,
         );
 
         const executionPrice = datapoint.candle.close;
@@ -278,7 +298,8 @@ export class BacktestService {
       i++;
     }
 
-    const avgExecutionPrice = executedQuantity > 0 ? totalValue / executedQuantity : 0;
+    const avgExecutionPrice =
+      executedQuantity > 0 ? totalValue / executedQuantity : 0;
 
     return { trades, executedQuantity, avgExecutionPrice };
   }
@@ -300,7 +321,7 @@ export class BacktestService {
    */
   private buildTranchExecutions(
     trades: TradeExecution[],
-    chartData: ChartDatapoint[]
+    chartData: ChartDatapoint[],
   ): TranchExecution[] {
     const trancheMap = new Map<number, TradeExecution[]>();
 
@@ -345,12 +366,12 @@ export class BacktestService {
    */
   private calculateMaxAdverseExcursion(
     chartData: ChartDatapoint[],
-    trades: TradeExecution[]
+    trades: TradeExecution[],
   ): number {
     if (trades.length === 0) return 0;
 
     const firstTradeIndex = chartData.findIndex(
-      (d) => d.candle.timestamp >= trades[0].timestamp
+      (d) => d.candle.timestamp >= trades[0].timestamp,
     );
 
     let maxAdverse = 0;
@@ -395,17 +416,19 @@ export class BacktestService {
    */
   private calculatePerformanceMetrics(
     chartData: ChartDatapoint[],
-    trades: TradeExecution[]
+    trades: TradeExecution[],
   ): PerformanceMetrics {
     const returns = this.calculateReturns(chartData);
     const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length || 0;
     const variance =
       returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
-      returns.length || 0;
+        returns.length || 0;
     const volatility = Math.sqrt(variance);
     const sharpeRatio = volatility > 0 ? avgReturn / volatility : 0;
 
-    const winningTrades = trades.filter((t) => t.price < chartData[0]?.candle.close);
+    const winningTrades = trades.filter(
+      (t) => t.price < chartData[0]?.candle.close,
+    );
     const winRate =
       trades.length > 0 ? winningTrades.length / trades.length : 0;
 
@@ -441,5 +464,5 @@ export class BacktestService {
  */
 export type BacktestProgressCallback = (
   progress: number,
-  message: string
+  message: string,
 ) => void;

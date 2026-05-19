@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Candle } from './types';
+import { Candle } from "./types";
 
 interface FetchHistoricalCandlesProps {
   accessToken: string;
   instrumentKey: string;
-  interval: '1minute' | '30minute' | 'day' | 'week' | 'month';
+  interval: "1minute" | "30minute" | "day" | "week" | "month";
   fromDate: string; // YYYY-MM-DD
   toDate: string; // YYYY-MM-DD
 }
@@ -19,14 +19,14 @@ export async function fetchHistoricalCandles({
 }: FetchHistoricalCandlesProps): Promise<Candle[]> {
   try {
     const url = `/api/upstox/historical-candle?instrumentKey=${encodeURIComponent(instrumentKey)}&interval=${interval}&fromDate=${fromDate}&toDate=${toDate}`;
-    console.log('[lib] Fetching from:', url);
-    
-    const response = await fetch(url, { 
-      method: 'GET',
+    console.log("[lib] Fetching from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
     });
 
     const result = await response.json();
@@ -44,13 +44,15 @@ export async function fetchHistoricalCandles({
       }));
 
       // Sort by timestamp ascending for chart components
-      return [...candles].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      return [...candles].sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+      );
     } else {
-      console.error('[lib] Data fetch error:', result);
-      throw new Error(result.error || 'Failed to fetch historical candles');
+      console.error("[lib] Data fetch error:", result);
+      throw new Error(result.error || "Failed to fetch historical candles");
     }
   } catch (error) {
-    console.error('Error fetching historical candles:', error);
+    console.error("Error fetching historical candles:", error);
     throw error;
   }
 }

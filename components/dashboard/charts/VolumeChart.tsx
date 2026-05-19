@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -11,19 +11,19 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
-import { ChartDatapoint, CustomizationPrefs } from '@/lib/types';
-import { PretradeResponse } from '@/lib/vwap-server-service';
+} from "recharts";
+import { ChartDatapoint, CustomizationPrefs } from "@/lib/types";
+import { PretradeResponse } from "@/lib/vwap-server-service";
 
 function VolumeTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null;
 
-  const up = payload.find((p: any) => p.dataKey === 'volumeUp');
-  const down = payload.find((p: any) => p.dataKey === 'volumeDown');
+  const up = payload.find((p: any) => p.dataKey === "volumeUp");
+  const down = payload.find((p: any) => p.dataKey === "volumeDown");
   // In this chart the XAxis uses `index`, so `label` is not a timestamp.
   // Use the data payload's timestamp instead.
   const tsRaw = payload?.[0]?.payload?.timestamp;
-  const ts = new Date(typeof tsRaw === 'number' ? tsRaw : Number(label));
+  const ts = new Date(typeof tsRaw === "number" ? tsRaw : Number(label));
 
   const upVal = Number(up?.value || 0);
   const downVal = Number(down?.value || 0);
@@ -38,27 +38,54 @@ function VolumeTooltip({ active, payload, label }: any) {
   return (
     <div
       style={{
-        backgroundColor: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: '10px',
-        padding: '10px 12px',
-        boxShadow: '0 10px 20px -10px rgba(0,0,0,0.25)',
+        backgroundColor: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "10px",
+        padding: "10px 12px",
+        boxShadow: "0 10px 20px -10px rgba(0,0,0,0.25)",
         minWidth: 180,
       }}
     >
-      <div style={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 12 }}>{ts.toLocaleString()}</div>
-      <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#10b981' }}>
+      <div
+        style={{ color: "var(--foreground)", fontWeight: 700, fontSize: 12 }}
+      >
+        {ts.toLocaleString()}
+      </div>
+      <div style={{ marginTop: 8, display: "grid", gap: 4, fontSize: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            color: "#10b981",
+          }}
+        >
           <span>Bullish</span>
           <span style={{ fontWeight: 700 }}>{fmt(upVal)}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#f43f5e' }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            color: "#f43f5e",
+          }}
+        >
           <span>Bearish</span>
           <span style={{ fontWeight: 700 }}>{fmt(downVal)}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: 'var(--muted-foreground)' }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            color: "var(--muted-foreground)",
+          }}
+        >
           <span>Total</span>
-          <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{fmt(total)}</span>
+          <span style={{ fontWeight: 700, color: "var(--foreground)" }}>
+            {fmt(total)}
+          </span>
         </div>
       </div>
     </div>
@@ -100,9 +127,12 @@ const VolumeChart = React.memo(function VolumeChart({
       const isUp = d.candle.close >= d.candle.open;
       const vol = vols[index] ?? 0;
       // Map pretrade curve to data index (scale proportionally)
-      const pretradeValue = pretradeCurve.length > 0
-        ? pretradeCurve[Math.floor((index / data.length) * pretradeCurve.length)] || 0
-        : 0;
+      const pretradeValue =
+        pretradeCurve.length > 0
+          ? pretradeCurve[
+              Math.floor((index / data.length) * pretradeCurve.length)
+            ] || 0
+          : 0;
 
       return {
         index,
@@ -154,7 +184,13 @@ const VolumeChart = React.memo(function VolumeChart({
           }}
           onMouseLeave={() => onCandleHover(null)}
         >
-          <CartesianGrid vertical horizontal strokeDasharray="3 3" stroke="var(--border)" opacity={0.25} />
+          <CartesianGrid
+            vertical
+            horizontal
+            strokeDasharray="3 3"
+            stroke="var(--border)"
+            opacity={0.25}
+          />
           <XAxis
             dataKey="index"
             type="category"
@@ -163,7 +199,7 @@ const VolumeChart = React.memo(function VolumeChart({
               if (item) {
                 return new Date(item.timestamp).toLocaleTimeString();
               }
-              return '';
+              return "";
             }}
             stroke="var(--foreground)"
             fontSize={11}
@@ -182,14 +218,19 @@ const VolumeChart = React.memo(function VolumeChart({
           />
           <Tooltip
             content={<VolumeTooltip />}
-            cursor={{ stroke: 'var(--muted-foreground)', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.6 }}
+            cursor={{
+              stroke: "var(--muted-foreground)",
+              strokeWidth: 1,
+              strokeDasharray: "3 3",
+              opacity: 0.6,
+            }}
             allowEscapeViewBox={{ x: true, y: true }}
             position={{ y: 0 }}
           />
           <Legend
             verticalAlign="top"
             height={20}
-            wrapperStyle={{ fontSize: '13px' }}
+            wrapperStyle={{ fontSize: "13px" }}
           />
 
           <Bar

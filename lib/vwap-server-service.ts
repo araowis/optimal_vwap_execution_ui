@@ -109,7 +109,13 @@ class VWAPServerService {
 
   // ── Analytics ────────────────────────────────────────────────────────────
 
-  /** GET /api/analytics/pretrade — Get pretrade baseline arrays */
+  /**
+   * GET /api/analytics/pretrade — Get pretrade baseline arrays.
+   *
+   * @param instrumentKey  Either a composite key ("clientId::NSE_EQ|...") or a bare
+   *                       instrument key.  The composite form is preferred — pass
+   *                       `${selectedClient.id}::${stock.instrument_key}`.
+   */
   async getPretrade(instrumentKey: string, bins: number = 375): Promise<PretradeResponse> {
     const response = await this.fetch(
       `/api/analytics/pretrade?instrumentKey=${encodeURIComponent(instrumentKey)}&bins=${bins}`
