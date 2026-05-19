@@ -9,6 +9,26 @@ interface CustomizationPanelProps {
   onPreferencesChange: (prefs: CustomizationPrefs) => void;
 }
 
+function SettingField({
+  label,
+  children,
+  fullWidth = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  fullWidth?: boolean;
+}) {
+  return (
+    <div className={fullWidth ? 'col-span-2' : 'col-span-1'}>
+      <label className="text-[11px] font-medium text-muted-foreground block mb-1.5 tracking-wide uppercase">
+        {label}
+      </label>
+
+      {children}
+    </div>
+  );
+}
+
 export default function CustomizationPanel({
   preferences,
   onPreferencesChange,
@@ -55,22 +75,34 @@ export default function CustomizationPanel({
         >
           <span className="font-medium text-foreground text-sm">Chart Settings</span>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${
-              expandedSections.chart ? 'rotate-180' : ''
-            }`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.chart ? 'rotate-180' : ''
+              }`}
           />
         </button>
 
         {expandedSections.chart && (
-          <div className="border-t border-border p-4 space-y-4 bg-background">
-            <div>
-              <label className="text-xs text-muted-foreground">Period</label>
+          <div
+            className="
+    border-t border-border
+    bg-background
+    px-4 py-4
+    grid grid-cols-2
+    gap-x-4 gap-y-5
+    animate-in fade-in-0 slide-in-from-top-1
+  "
+          >
+            <SettingField label="Period">
               <select
                 value={preferences.chartPeriod}
                 onChange={(e) =>
                   handleChange('chartPeriod', e.target.value)
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full h-10 px-3
+      bg-secondary/60
+      border border-border
+      rounded-md text-sm
+    "
               >
                 <option>MINUTE</option>
                 <option>5MIN</option>
@@ -78,22 +110,34 @@ export default function CustomizationPanel({
                 <option>HOURLY</option>
                 <option>DAILY</option>
               </select>
-            </div>
+            </SettingField>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Chart Type</label>
+            <SettingField label="Chart Type">
               <select
                 value={preferences.chartType}
                 onChange={(e) =>
                   handleChange('chartType', e.target.value)
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full
+      h-10
+      px-3
+      bg-secondary/60
+      border border-border
+      rounded-md
+      text-sm
+      transition-colors
+      hover:border-primary/40
+      focus:outline-none
+      focus:ring-2
+      focus:ring-primary/20
+    "
               >
                 <option>CANDLESTICK</option>
                 <option>OHLC</option>
                 <option>LINE</option>
               </select>
-            </div>
+            </SettingField>
 
             <div className="flex gap-2">
               <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
@@ -120,14 +164,22 @@ export default function CustomizationPanel({
           >
             <span className="font-medium text-foreground text-sm">VWAP Bands</span>
             <ChevronDown
-              className={`w-4 h-4 text-muted-foreground transition-transform ${
-                expandedSections.vwap ? 'rotate-180' : ''
-              }`}
+              className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.vwap ? 'rotate-180' : ''
+                }`}
             />
           </button>
-  
+
           {expandedSections.vwap && (
-            <div className="border-t border-border p-4 space-y-4 bg-background">
+            <div
+              className="
+    border-t border-border
+    bg-background
+    px-4 py-4
+    grid grid-cols-2
+    gap-x-4 gap-y-5
+    animate-in fade-in-0 slide-in-from-top-1
+  "
+            >
               <div className="flex gap-2">
                 <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer flex-1">
                   <input
@@ -150,20 +202,22 @@ export default function CustomizationPanel({
                   Bands
                 </label>
               </div>
-  
-              <div>
-                <label className="text-xs text-muted-foreground">Band Width (σ)</label>
+
+              <SettingField label="Band Width (σ)">
                 <input
                   type="number"
                   step="0.1"
                   value={preferences.bandWidth}
                   onChange={(e) =>
-                    handleChange('bandWidth', parseFloat(e.target.value) || 1)
+                    handleChange(
+                      'bandWidth',
+                      parseFloat(e.target.value) || 1
+                    )
                   }
-                  className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                  className="w-full h-10 px-3 bg-secondary/60 border border-border rounded-md text-sm"
                 />
-              </div>
-  
+              </SettingField>
+
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground block mb-1">
@@ -205,7 +259,7 @@ export default function CustomizationPanel({
                   />
                 </div>
               </div>
-  
+
               <div>
                 <label className="text-xs text-muted-foreground">Fill Opacity</label>
                 <input
@@ -233,14 +287,22 @@ export default function CustomizationPanel({
         >
           <span className="font-medium text-foreground text-sm">Volume</span>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${
-              expandedSections.volume ? 'rotate-180' : ''
-            }`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.volume ? 'rotate-180' : ''
+              }`}
           />
         </button>
 
         {expandedSections.volume && (
-          <div className="border-t border-border p-4 space-y-4 bg-background">
+          <div
+            className="
+    border-t border-border
+    bg-background
+    px-4 py-4
+    grid grid-cols-2
+    gap-x-4 gap-y-5
+    animate-in fade-in-0 slide-in-from-top-1
+  "
+          >
             <div className="flex gap-2">
               <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer flex-1">
                 <input
@@ -264,36 +326,47 @@ export default function CustomizationPanel({
               </label>
             </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Number of Bins</label>
+            <SettingField label="Number of Bins">
               <select
                 value={preferences.numVolumeBins}
                 onChange={(e) =>
-                  handleChange('numVolumeBins', parseInt(e.target.value) as 5 | 10 | 20 | 50)
+                  handleChange(
+                    'numVolumeBins',
+                    parseInt(e.target.value) as 5 | 10 | 20 | 50
+                  )
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full h-10 px-3
+      bg-secondary/60
+      border border-border
+      rounded-md text-sm
+    "
               >
                 <option value="5">5 Bins</option>
                 <option value="10">10 Bins</option>
                 <option value="20">20 Bins</option>
                 <option value="50">50 Bins</option>
               </select>
-            </div>
+            </SettingField>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Coloring</label>
+            <SettingField label="Coloring">
               <select
                 value={preferences.volumeColoring}
                 onChange={(e) =>
                   handleChange('volumeColoring', e.target.value)
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full h-10 px-3
+      bg-secondary/60
+      border border-border
+      rounded-md text-sm
+    "
               >
                 <option>MONOCHROME</option>
                 <option>GRADIENT</option>
                 <option>BY_PRICE</option>
               </select>
-            </div>
+            </SettingField>
           </div>
         )}
       </div>
@@ -306,14 +379,22 @@ export default function CustomizationPanel({
         >
           <span className="font-medium text-foreground text-sm">Buy Signals</span>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform ${
-              expandedSections.signals ? 'rotate-180' : ''
-            }`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.signals ? 'rotate-180' : ''
+              }`}
           />
         </button>
 
         {expandedSections.signals && (
-          <div className="border-t border-border p-4 space-y-4 bg-background">
+          <div
+            className="
+    border-t border-border
+    bg-background
+    px-4 py-4
+    grid grid-cols-2
+    gap-x-4 gap-y-5
+    animate-in fade-in-0 slide-in-from-top-1
+  "
+          >
             <div className="flex flex-col gap-3">
               <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
                 <input
@@ -338,20 +419,24 @@ export default function CustomizationPanel({
               </label>
             </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Marker Style</label>
+            <SettingField label="Marker Style">
               <select
                 value={preferences.signalMarkerType}
                 onChange={(e) =>
                   handleChange('signalMarkerType', e.target.value)
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full h-10 px-3
+      bg-secondary/60
+      border border-border
+      rounded-md text-sm
+    "
               >
                 <option value="PIN">Location Pin</option>
                 <option value="DOT">Simple Dot</option>
                 <option value="ARROW">Upward Arrow</option>
               </select>
-            </div>
+            </SettingField>
 
             <div>
               <label className="text-xs text-muted-foreground">Marker Size</label>
@@ -368,46 +453,68 @@ export default function CustomizationPanel({
               />
             </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Buy Threshold (Dev %)</label>
+            <SettingField label="Buy Threshold (Dev %)">
               <input
                 type="number"
                 step="0.05"
                 value={preferences.buyThreshold}
                 onChange={(e) =>
-                  handleChange('buyThreshold', parseFloat(e.target.value) || 0)
+                  handleChange(
+                    'buyThreshold',
+                    parseFloat(e.target.value) || 0
+                  )
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full h-10 px-3
+      bg-secondary/60
+      border border-border
+      rounded-md text-sm
+    "
               />
-            </div>
+            </SettingField>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Min Volume</label>
+            <SettingField label="Min Volume">
               <input
                 type="number"
                 step="1000"
                 value={preferences.minVolumeThreshold}
                 onChange={(e) =>
-                  handleChange('minVolumeThreshold', parseInt(e.target.value) || 0)
+                  handleChange(
+                    'minVolumeThreshold',
+                    parseInt(e.target.value) || 0
+                  )
                 }
-                className="w-full px-3 py-2 bg-secondary text-foreground border border-border rounded text-sm mt-1"
+                className="
+      w-full h-10 px-3
+      bg-secondary/60
+      border border-border
+      rounded-md text-sm
+    "
               />
-            </div>
+            </SettingField>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Strength Threshold</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={preferences.signalStrengthThreshold}
-                onChange={(e) =>
-                  handleChange('signalStrengthThreshold', parseInt(e.target.value))
-                }
-                className="w-full mt-1"
-              />
-            </div>
+            <SettingField label="Strength Threshold">
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={preferences.signalStrengthThreshold}
+                  onChange={(e) =>
+                    handleChange(
+                      'signalStrengthThreshold',
+                      parseInt(e.target.value)
+                    )
+                  }
+                  className="flex-1"
+                />
+
+                <div className="w-10 text-center text-xs font-semibold text-muted-foreground">
+                  {preferences.signalStrengthThreshold}
+                </div>
+              </div>
+            </SettingField>
           </div>
         )}
       </div>

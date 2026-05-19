@@ -72,18 +72,18 @@ export default function StockDetailPanel({
               <span className="text-muted-foreground">Exchange</span>
               <span className="text-foreground font-medium">{stock.exchange}</span>
             </div>
-            <div className="flex justify-between">
+            {/* <div className="flex justify-between">
               <span className="text-muted-foreground">Segment</span>
               <span className="text-foreground font-medium">{stock.segment}</span>
-            </div>
+            </div> */}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Instrument Type</span>
               <span className="text-foreground font-medium">{stock.instrument_type}</span>
             </div>
-            <div className="flex justify-between">
+            {/* <div className="flex justify-between">
               <span className="text-muted-foreground">Lot Size</span>
               <span className="text-foreground font-medium">{stock.lot_size}</span>
-            </div>
+            </div> */}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Instrument Key</span>
               <span className="text-foreground font-medium text-[10px] truncate max-w-[150px]" title={stock.instrument_key}>{stock.instrument_key}</span>

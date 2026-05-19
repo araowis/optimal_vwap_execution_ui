@@ -127,7 +127,7 @@ function PriceTooltip({ active, payload, label, coordinate }: any) {
           }}
         >
           <div style={{ color: '#22c55e', fontWeight: 800, fontSize: 13, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 14 }}>🟢</span> Buy Signal — Bin #{sig.binIdx}
+            <span style={{ fontSize: 14 }}>🟢</span> Buy Signal
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
             <tbody>

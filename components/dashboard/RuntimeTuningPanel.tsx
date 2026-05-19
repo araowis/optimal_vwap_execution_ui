@@ -306,7 +306,7 @@ export default function RuntimeTuningPanel({
       </div>
 
       {/* Parameter groups */}
-      <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
         {loading && !noContext ? (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/50" />
@@ -316,7 +316,10 @@ export default function RuntimeTuningPanel({
           PARAM_GROUPS.map((group) => {
             const dirtyCount = group.fields.filter(isDirty).length;
             return (
-              <div key={group.label} className="border border-border/50 rounded-md overflow-hidden">
+              <div
+  key={group.label}
+  className="border border-border/50 rounded-lg overflow-hidden bg-card/40 backdrop-blur-sm"
+>
                 <button
                   onClick={() => toggleGroup(group.label)}
                   className="w-full flex items-center justify-between px-3 py-2 bg-secondary/15 hover:bg-secondary/30 transition-colors group"
@@ -341,40 +344,61 @@ export default function RuntimeTuningPanel({
                 </button>
 
                 {expandedGroups[group.label] && (
-                  <div className="divide-y divide-border/30 bg-background">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 p-2 bg-background">
                     {group.fields.map((field) => {
                       const dirty = isDirty(field);
+
                       return (
                         <div
                           key={field}
                           className={cn(
-                            'flex items-center gap-2 px-3 py-1.5 transition-colors',
-                            dirty ? 'bg-primary/3' : 'hover:bg-secondary/10'
+                            'rounded-md border transition-all min-w-0',
+                            dirty
+                              ? 'border-primary/30 bg-primary/5'
+                              : 'border-border/40 bg-secondary/10 hover:bg-secondary/20'
                           )}
                         >
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                            {dirty && <div className="w-1 h-1 rounded-full bg-primary flex-shrink-0" />}
-                            <label
-                              className={cn(
-                                'text-[10px] font-mono truncate',
-                                dirty ? 'text-foreground/80' : 'text-muted-foreground/70'
+                          <div className="flex items-start justify-between gap-3 p-2">
+                            <div className="flex items-start gap-2 min-w-0 flex-1">
+                              {dirty && (
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1 flex-shrink-0" />
                               )}
-                              title={field}
-                            >
-                              {field}
-                            </label>
+
+                              <div className="min-w-0 flex-1">
+                                <label
+                                  className={cn(
+                                    'block text-[10px] font-mono break-all leading-tight',
+                                    dirty
+                                      ? 'text-foreground'
+                                      : 'text-muted-foreground/80'
+                                  )}
+                                  title={field}
+                                >
+                                  {field}
+                                </label>
+
+                                <div className="mt-1 text-[9px] text-muted-foreground/40">
+                                  step {FIELD_STEP(field)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <input
+                              type="number"
+                              step={FIELD_STEP(field)}
+                              value={formatVal(field, (params as any)[field])}
+                              onChange={(e) => handleParamChange(field, e.target.value)}
+                              disabled={noContext}
+                              className={cn(
+                                'w-24 shrink-0 rounded-md border px-2 py-1 bg-background text-[10px] font-mono text-right outline-none transition-all',
+                                'focus:ring-1 focus:ring-primary/30',
+                                dirty
+                                  ? 'border-primary/40 text-primary'
+                                  : 'border-border/50 text-foreground',
+                                'disabled:opacity-30'
+                              )}
+                            />
                           </div>
-                          <input
-                            type="number"
-                            step={FIELD_STEP(field)}
-                            value={formatVal(field, (params as any)[field])}
-                            onChange={(e) => handleParamChange(field, e.target.value)}
-                            disabled={noContext}
-                            className={cn(
-                              'w-20 px-2 py-0.5 bg-secondary/30 border rounded-sm text-[10px] font-mono text-right transition-colors outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-30',
-                              dirty ? 'border-primary/30 bg-primary/5 text-primary' : 'border-border/40 text-foreground'
-                            )}
-                          />
                         </div>
                       );
                     })}
