@@ -209,8 +209,8 @@ export interface WSMessage {
 export interface BackendBuySignal {
   binIdx: number;
   time: string; // "HH:mm"
-  tNorm: number; // Normalized time 0–1
-  qtyToBuy: number;
+  // tNorm: number; // Normalized time 0–1
+  // qtyToBuy: number;
   executedQty: number;
   execPrice: number;
   cumTarget: number;
