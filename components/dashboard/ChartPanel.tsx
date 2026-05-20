@@ -17,7 +17,7 @@ import {
 } from "@/lib/types";
 import { vwapServerService, PretradeResponse } from "@/lib/vwap-server-service";
 import { WSCalibrationMessage, WSRegimeMessage } from "@/lib/vwap-server-types";
-import { Activity, AlertCircle, RefreshCw } from "lucide-react";
+import { Activity, AlertCircle, RefreshCw, SlidersHorizontal } from "lucide-react";
 import PriceChart from "./charts/PriceChart";
 import VolumeChart from "./charts/VolumeChart";
 import PretradeCharts from "./charts/PretradeCharts";
@@ -26,6 +26,7 @@ interface ChartPanelProps {
   candles: Candle[];
   chartData: ChartDatapoint[];
   customizationPrefs: CustomizationPrefs;
+  onPreferencesChange?: (prefs: CustomizationPrefs) => void;
   onChartDataChange: (data: ChartDatapoint[]) => void;
   companyLogo?: string;
   instrumentName?: string;
@@ -51,6 +52,7 @@ const ChartPanel = memo(function ChartPanel({
   candles,
   chartData,
   customizationPrefs,
+  onPreferencesChange,
   instrumentKey,
   onChartDataChange,
   companyLogo,
@@ -78,6 +80,7 @@ const ChartPanel = memo(function ChartPanel({
   const [showPretradeInMain, setShowPretradeInMain] = useState(false);
   const [horizontalLines, setHorizontalLines] = useState<number[]>([]);
   const [isAddingLine, setIsAddingLine] = useState(false);
+  const [showSignalSettings, setShowSignalSettings] = useState(false);
 
   const availableKeys = useMemo(() => {
     if (candles.length === 0) return [] as string[];
@@ -689,12 +692,209 @@ const ChartPanel = memo(function ChartPanel({
             </button>
           )}
 
+          <div className="bg-secondary rounded-md border border-border hover:border-primary/50 transition-colors">
+            <select
+              value={customizationPrefs.chartType}
+              onChange={(e) =>
+                onPreferencesChange?.({
+                  ...customizationPrefs,
+                  chartType: e.target.value as any,
+                })
+              }
+              className="text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none text-foreground font-medium"
+              title="Chart Type"
+            >
+              <option value="CANDLESTICK" className="bg-background text-foreground">
+                Candlestick
+              </option>
+              <option value="OHLC" className="bg-background text-foreground">
+                OHLC
+              </option>
+              <option value="LINE" className="bg-background text-foreground">
+                Line
+              </option>
+            </select>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowSignalSettings(!showSignalSettings)}
+              className={`text-[11px] px-2.5 py-1.5 rounded-md border transition-all flex items-center gap-1.5 font-medium ${
+                showSignalSettings
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-secondary border-border text-foreground hover:bg-secondary/80 hover:border-primary/50"
+              }`}
+              title="Buy Signal Styling & Filters"
+            >
+              <SlidersHorizontal className="w-3 h-3" />
+              <span>Signals Settings</span>
+            </button>
+
+            {showSignalSettings && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-4 flex flex-col gap-3.5 text-foreground ring-1 ring-black/5 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="font-bold text-xs tracking-tight">Signal Settings</span>
+                  <button 
+                    onClick={() => setShowSignalSettings(false)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground font-semibold"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {/* Show Signals Switch */}
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="rounded border-border bg-secondary text-primary focus:ring-primary/20 h-4 w-4 cursor-pointer"
+                      checked={customizationPrefs.signalsVisible}
+                      onChange={(e) =>
+                        onPreferencesChange?.({
+                          ...customizationPrefs,
+                          signalsVisible: e.target.checked,
+                        })
+                      }
+                    />
+                    Show Signals
+                  </label>
+
+                  <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="rounded border-border bg-secondary text-primary focus:ring-primary/20 h-4 w-4 cursor-pointer"
+                      checked={customizationPrefs.showSignalLines}
+                      onChange={(e) =>
+                        onPreferencesChange?.({
+                          ...customizationPrefs,
+                          showSignalLines: e.target.checked,
+                        })
+                      }
+                    />
+                    Vertical Lines
+                  </label>
+                </div>
+
+                {/* Marker Style */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Marker Style
+                  </label>
+                  <select
+                    value={customizationPrefs.signalMarkerType}
+                    onChange={(e) =>
+                      onPreferencesChange?.({
+                        ...customizationPrefs,
+                        signalMarkerType: e.target.value as any,
+                      })
+                    }
+                    className="w-full text-xs bg-secondary border border-border rounded-md px-2 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                  >
+                    <option value="PIN" className="bg-background text-foreground">Location Pin</option>
+                    <option value="DOT" className="bg-background text-foreground">Simple Dot</option>
+                    <option value="ARROW" className="bg-background text-foreground">Upward Arrow</option>
+                  </select>
+                </div>
+
+                {/* Marker Size */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Marker Size
+                    </label>
+                    <span className="text-[10px] font-semibold text-muted-foreground">
+                      {customizationPrefs.signalMarkerSize}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="4"
+                    max="16"
+                    step="2"
+                    value={customizationPrefs.signalMarkerSize}
+                    onChange={(e) =>
+                      onPreferencesChange?.({
+                        ...customizationPrefs,
+                        signalMarkerSize: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full accent-primary bg-secondary h-1 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {/* Buy Threshold Dev % */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Buy Threshold (Dev %)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={customizationPrefs.buyThreshold}
+                    onChange={(e) =>
+                      onPreferencesChange?.({
+                        ...customizationPrefs,
+                        buyThreshold: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full text-xs bg-secondary border border-border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                  />
+                </div>
+
+                {/* Min Volume */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Min Volume
+                  </label>
+                  <input
+                    type="number"
+                    step="1000"
+                    value={customizationPrefs.minVolumeThreshold}
+                    onChange={(e) =>
+                      onPreferencesChange?.({
+                        ...customizationPrefs,
+                        minVolumeThreshold: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full text-xs bg-secondary border border-border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                  />
+                </div>
+
+                {/* Strength Threshold */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Strength Threshold
+                    </label>
+                    <span className="text-[10px] font-semibold text-muted-foreground">
+                      {customizationPrefs.signalStrengthThreshold}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={customizationPrefs.signalStrengthThreshold}
+                    onChange={(e) =>
+                      onPreferencesChange?.({
+                        ...customizationPrefs,
+                        signalStrengthThreshold: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full accent-primary bg-secondary h-1 rounded-lg cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => setIsAddingLine(!isAddingLine)}
-            className={`text-xs px-2 py-1 rounded border transition-colors ${
+            className={`text-[11px] px-2.5 py-1.5 rounded-md border transition-colors ${
               isAddingLine
                 ? "bg-blue-500 text-white border-blue-600"
-                : "bg-background border-border text-foreground hover:bg-secondary"
+                : "bg-secondary border-border text-foreground hover:bg-secondary/80 hover:border-primary/50"
             }`}
             title="Click on chart to add a horizontal price line"
           >

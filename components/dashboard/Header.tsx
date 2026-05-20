@@ -59,11 +59,16 @@ export default function Header({
     <header className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
-          <div className="bg-foreground rounded-sm p-1.5">
-            <BarChart3 className="w-5 h-5 text-background" />
-          </div>
+          <img
+            src="https://www.google.com/s2/favicons?sz=64&domain=wissen.com"
+            alt="Wissen Technology Logo"
+            className="w-8 h-8 rounded-sm object-contain"
+          />
           <div>
-            <h1 className="text-xl font-bold text-foreground">VWAP Trading</h1>
+            <div className="flex items-baseline gap-1.5">
+              <h1 className="text-xl font-black text-foreground tracking-wider">PLUTOS</h1>
+              <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">by Wissen Technology</span>
+            </div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
               Execution Dashboard
             </p>
