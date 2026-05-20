@@ -39,6 +39,9 @@ import {
 import { fetchHistoricalCandles, getTodayDate, getYesterdayDate } from '@/lib/upstox-historical';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Zap, Activity } from 'lucide-react';
 import { toast } from 'sonner';
+import WatchlistPanel from "./watchlist-panel";
+import AddInstrumentPanel from "./add-instrument-panel";
+import { useWatchlistStore } from "@/stores/watchlist-store";
 
 interface DashboardLayoutProps {
   customizationPrefs: CustomizationPrefs;
@@ -65,7 +68,13 @@ export default function DashboardLayout({
   const [backTestProgress, setBackTestProgress] = useState(0);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationMessage, setCalibrationMessage] = useState('');
-  const [realtimePriceUpdate, setRealtimePriceUpdate] = useState<{ ltp: number; timestamp: number; volume?: number } | undefined>(undefined);
+  const [realtimePriceUpdate, setRealtimePriceUpdate] =
+  useState<{
+    ltp: number;
+    timestamp: number;
+    volume?: number;
+    vwap?: number;
+  } | undefined>(undefined);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
 
   // Client Management State
@@ -260,6 +269,7 @@ export default function DashboardLayout({
       console.error('Failed to fetch tuning profiles from server', e);
     }
   }, []);
+  
 
   useEffect(() => {
     fetchClients();
@@ -494,13 +504,22 @@ export default function DashboardLayout({
         const compositeKey = `${msg.clientId}::${msg.instrument}`;
 
         const newSignal: BackendBuySignal = {
-          time: msg.marketTime.substring(0, 5),
-          execPrice: msg.ltp,
-          executedQty: msg.qty,
-          cumTarget: msg.cumTarget,
-          xStar: msg.xStar,
-          binIdx: msg.binIdx,
-        };
+  time: msg.marketTime.substring(0, 5),
+
+  execPrice: msg.ltp,
+
+  executedQty: msg.qty,
+
+  cumTarget: msg.cumTarget,
+
+  xStar: msg.xStar,
+
+  binIdx: msg.binIdx,
+
+  // tNorm: msg.tNorm, // focus here if buy signals send these two via ws then turn these on... Also turn them on in types.ts
+
+  // qtyToBuy: msg.qtyToBuy,
+};
 
         setSignalsMap(prev => {
           const updatedSignals = [...(prev[compositeKey] || []), newSignal];
@@ -1027,6 +1046,17 @@ export default function DashboardLayout({
     }
   };
 
+  const {
+  watchlists,
+  fetchWatchlists,
+} = useWatchlistStore();
+
+useEffect(() => {
+  if (selectedClient?.id) {
+    fetchWatchlists(selectedClient.id);
+  }
+}, [selectedClient, fetchWatchlists]);
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Header */}
@@ -1074,7 +1104,13 @@ export default function DashboardLayout({
                 </>
               ) : (
                 <>
+                <WatchlistPanel
+  clientId={selectedClient?.id || ""}
+  onSelectStock={handleWatchlistStockSelect}
+/>
+
                   <DataUploadPanel
+                    clientId={selectedClient?.id || ""}
                     onDataUpload={handleDataUpload}
                     mode={mode as 'backtest' | 'realtime'}
                     onWatchlistStockSelect={handleWatchlistStockSelect}
@@ -1088,8 +1124,8 @@ export default function DashboardLayout({
                         // Use selectedWatchlistStock logo if available, otherwise leave blank
                       }
                     }}
-                    watchlist={selectedClient?.watchlist || []}
-                    onWatchlistChange={handleWatchlistChange}
+                    // watchlist={selectedClient?.watchlist || []}
+                    // onWatchlistChange={handleWatchlistChange}
                   />
                   <ParametersPanel
                     params={strategyParams}
