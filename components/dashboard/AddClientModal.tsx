@@ -227,6 +227,32 @@ export default function AddClientModal({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground block">
+                    Display Name <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setName(val);
+                      if (!editingClient) {
+                        setClientId(
+                          val
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9\s-_]/g, "")
+                            .replace(/\s+/g, "_")
+                            .replace(/_+/g, "_")
+                        );
+                      }
+                    }}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="e.g. HDFC Equities Desk"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground block">
                     Client ID <span className="text-destructive">*</span>
                   </label>
                   <div className="relative">
@@ -237,63 +263,23 @@ export default function AddClientModal({
                       value={clientId}
                       onChange={(e) =>
                         setClientId(
-                          e.target.value.toUpperCase().replace(/\s+/g, "_"),
+                          e.target.value.toUpperCase().replace(/\s+/g, "_")
                         )
                       }
                       className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none pl-10 disabled:opacity-50"
-                      placeholder="e.g. HDFC_DESK"
+                      placeholder="Auto-generated from Name"
                     />
                     <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   </div>
-                  {editingClient && (
+                  {editingClient ? (
                     <p className="text-[10px] text-muted-foreground">
                       Client ID is immutable after creation.
                     </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Auto-generated based on name. Modify if you need custom naming conventions.
+                    </p>
                   )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground block">
-                    Display Name <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none"
-                    placeholder="e.g. HDFC Equities Desk"
-                  />
-                </div>
-
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground block">
-                    Profile Image URL (Optional)
-                  </label>
-                  <div className="relative flex gap-3">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        value={logo}
-                        onChange={(e) => setLogo(e.target.value)}
-                        className="w-full px-4 py-2 bg-background border border-border rounded-sm text-sm focus:ring-1 focus:ring-primary/30 outline-none pl-10"
-                        placeholder="https://example.com/logo.png"
-                      />
-                      <ImageIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    </div>
-                    {logo && (
-                      <div className="w-9 h-9 border border-border rounded-sm overflow-hidden flex-shrink-0 bg-white">
-                        <img
-                          src={logo}
-                          alt="Preview"
-                          className="w-full h-full object-contain"
-                          onError={(e) =>
-                            (e.currentTarget.style.display = "none")
-                          }
-                        />
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </section>

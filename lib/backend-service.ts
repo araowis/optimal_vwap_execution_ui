@@ -3,8 +3,7 @@
  * Handles communication with the Java Spring Boot backend running on localhost:8080
  */
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const BACKEND_URL = "/api/vwap-server";
 
 export interface SummaryStats {
   totalShares: number;

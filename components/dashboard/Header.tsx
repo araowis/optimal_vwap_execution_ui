@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Settings } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import StatusIndicator from "./StatusIndicator";
 import ClientDropdown from "./ClientDropdown";
 import RiskProfileDropdown from "./RiskProfileDropdown";
@@ -56,13 +56,13 @@ export default function Header({
   onDeleteTuningProfile,
 }: HeaderProps) {
   return (
-    <header className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+    <header className="bg-card border-b border-border px-6 py-2.5 flex items-center justify-between">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
           <img
             src="https://www.google.com/s2/favicons?sz=64&domain=wissen.com"
             alt="Wissen Technology Logo"
-            className="w-8 h-8 rounded-sm object-contain"
+            className="w-10 h-10 rounded-sm object-contain"
           />
           <div>
             <div className="flex items-baseline gap-1.5">
@@ -107,24 +107,7 @@ export default function Header({
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Timeframe:</span>
-            <select
-              value={chartTimeframeMode}
-              onChange={(e) => onTimeframeChange?.(e.target.value as any)}
-              className="text-sm bg-background border border-border rounded-sm px-3 py-1.5 hover:bg-secondary transition-colors"
-            >
-              <option value="ALL">All</option>
-              <option value="DAY">Day</option>
-              <option value="WEEK">Week</option>
-              <option value="MONTH">Month</option>
-              <option value="YEAR">Year</option>
-            </select>
-          </div>
-          <StatusIndicator />
-          <button className="p-2 rounded-sm hover:bg-secondary transition-colors">
-            <Settings className="w-5 h-5 text-foreground" />
-          </button>
+          <StatusIndicator small />
         </div>
       </div>
     </header>

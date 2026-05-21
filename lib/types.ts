@@ -157,7 +157,7 @@ export interface PerformanceMetrics {
 // Customization Preferences
 export interface CustomizationPrefs {
   chartPeriod: "MINUTE" | "5MIN" | "15MIN" | "HOURLY" | "DAILY";
-  chartType: "CANDLESTICK" | "OHLC" | "LINE";
+  chartType: "CANDLESTICK" | "OHLC" | "LINE" | "AREA";
   vwapVisible: boolean;
   bandsVisible: boolean;
   bandWidth: number; // Standard deviation multiplier

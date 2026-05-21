@@ -42,7 +42,7 @@ export interface TuningDiffResponse {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const VWAP_SERVER_URL = process.env.NEXT_PUBLIC_VWAP_SERVER_URL || 'http://localhost:5000';
+const VWAP_SERVER_URL = "/api/vwap-server";
 
 class VWAPServerService {
   private baseUrl: string;
@@ -113,12 +113,16 @@ class VWAPServerService {
    * GET /api/analytics/pretrade — Get pretrade baseline arrays.
    *
    * @param instrumentKey  Either a composite key ("clientId::NSE_EQ|...") or a bare
-   *                       instrument key.  The composite form is preferred — pass
-   *                       `${selectedClient.id}::${stock.instrument_key}`.
+   *                       instrument key. The backend only accepts the bare key —
+   *                       this method strips the "clientId::" prefix automatically.
    */
   async getPretrade(instrumentKey: string, bins: number = 375): Promise<PretradeResponse> {
+    // Strip composite prefix: "clientId::NSE_EQ|..." → "NSE_EQ|..."
+    const bareKey = instrumentKey.includes('::')
+      ? instrumentKey.split('::').slice(1).join('::')
+      : instrumentKey;
     const response = await this.fetch(
-      `/api/analytics/pretrade?instrumentKey=${encodeURIComponent(instrumentKey)}&bins=${bins}`
+      `/api/analytics/pretrade?instrumentKey=${encodeURIComponent(bareKey)}&bins=${bins}`
     );
     return response.json();
   }

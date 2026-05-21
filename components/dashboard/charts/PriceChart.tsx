@@ -537,7 +537,13 @@ const PriceChart = React.memo(function PriceChart({
 
   // Merge backend buy signals into chart data points by HH:mm match
   const chartDataWithSignals = useMemo(() => {
-    if (!backendBuySignals.length) return chartDataWithVolume;
+    if (!backendBuySignals.length) {
+      return chartDataWithVolume.map((d) => ({
+        ...d,
+        backendSignalPrice: null as number | null,
+        backendSignalMetaList: [] as BackendBuySignal[],
+      }));
+    }
 
     const signalByTime = new Map<string, BackendBuySignal[]>();
     backendBuySignals.forEach((sig) => {
@@ -787,8 +793,6 @@ const PriceChart = React.memo(function PriceChart({
                 fill: "white",
                 fontSize: 10,
                 fontWeight: 700,
-                backgroundColor: "var(--primary)",
-                padding: "2px 4px",
               }}
             />
           )}
@@ -811,11 +815,6 @@ const PriceChart = React.memo(function PriceChart({
                 fill: "white",
                 fontSize: 10,
                 fontWeight: 800,
-                backgroundColor:
-                  data[data.length - 1].candle.close >=
-                  data[data.length - 1].candle.open
-                    ? "#10b981"
-                    : "#ef4444",
                 dx: -10,
                 dy: -10,
               }}
@@ -836,7 +835,6 @@ const PriceChart = React.memo(function PriceChart({
                 fill: "#3b82f6",
                 fontSize: 10,
                 fontWeight: "bold",
-                backgroundColor: "var(--background)",
               }}
             />
           ))}

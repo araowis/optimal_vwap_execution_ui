@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Wifi,
   WifiOff,
+  Info,
 } from "lucide-react";
 import {
   RuntimeTuningParams,
@@ -111,6 +112,10 @@ const PARAM_GROUPS: ParamGroup[] = [
     fields: ["refinementPasses", "binSmoothingWindow", "minSpacingDenominator"],
   },
 ];
+const camelToTitle = (text: string) => {
+  const result = text.replace(/([A-Z])/g, " $1");
+  return result.charAt(0).toUpperCase() + result.slice(1);
+};
 
 const INTEGER_FIELDS = new Set<ParamKey>([
   "upTrendConsecBars",
@@ -119,6 +124,41 @@ const INTEGER_FIELDS = new Set<ParamKey>([
   "binSmoothingWindow",
   "minSpacingDenominator",
 ]);
+
+const PARAM_METADATA: Record<ParamKey, { desc: string; typical: string; recommended: string }> = {
+  lambdaMultiplier: { desc: "Dynamically scales the urgency and aggression of trade execution to adapt to market volatility. Higher values enforce faster completion, while lower values prioritize passive spread capture.", typical: "0.5 - 5.0", recommended: "1.0 - 2.0" },
+  adjustmentClampLo: { desc: "The absolute maximum percentage by which the engine is permitted to dynamically decelerate trading below the scheduled target. Acts as a safety floor.", typical: "-0.5 - 0.0", recommended: "-0.15" },
+  adjustmentClampHi: { desc: "The absolute maximum percentage by which the engine is permitted to dynamically accelerate trading above the scheduled target. Prevents over-execution.", typical: "0.0 - 0.5", recommended: "0.15" },
+  rawTrendWeightGap: { desc: "Defines how heavily overnight price gaps influence the engine's assessment of current trend strength. Essential for morning gap-and-go scenarios.", typical: "0.1 - 0.5", recommended: "0.33" },
+  rawTrendWeightConsistency: { desc: "Determines the importance of consecutive directional movements (persistence) when calculating the overall trend score.", typical: "0.1 - 0.5", recommended: "0.33" },
+  rawTrendWeightReturn: { desc: "The weighting assigned to immediate historical return magnitudes when evaluating the momentum and direction of the market.", typical: "0.1 - 0.5", recommended: "0.34" },
+  ewmaFastOldWeight: { desc: "Decay factor for the short-term Exponential Weighted Moving Average (EWMA) tracking recent price volatility. Lower values adapt faster.", typical: "0.8 - 0.95", recommended: "0.9" },
+  ewmaSlowOldWeight: { desc: "Decay factor for the long-term Exponential Weighted Moving Average (EWMA) tracking baseline market trends. Higher values provide stability.", typical: "0.9 - 0.99", recommended: "0.95" },
+  upTrendScoreThreshold: { desc: "The minimum required trend score required for the engine to officially switch into a formalized 'UP' regime state.", typical: "0.1 - 0.5", recommended: "0.25" },
+  upTrendConsecBars: { desc: "The exact number of consecutive positive trend signals required to validate and trigger an 'UP' regime transition.", typical: "2 - 5", recommended: "3" },
+  downTrendScoreThreshold: { desc: "The minimum negative trend score required for the engine to officially switch into a formalized 'DOWN' regime state.", typical: "-0.5 - -0.1", recommended: "-0.25" },
+  downTrendConsecBars: { desc: "The exact number of consecutive negative trend signals required to validate and trigger a 'DOWN' regime transition.", typical: "2 - 5", recommended: "3" },
+  maxTrendAccel: { desc: "Caps the maximum positive execution acceleration applied during a highly favorable trend scenario to avoid market impact.", typical: "0.05 - 0.3", recommended: "0.15" },
+  minTrendAccel: { desc: "Caps the maximum negative execution deceleration (slowing down) permitted during an unfavorable trend scenario.", typical: "-0.3 - -0.05", recommended: "-0.15" },
+  trendAccelScaleUp: { desc: "A pure multiplier applied to calculated acceleration when scaling up execution speed in response to positive trends.", typical: "0.5 - 2.0", recommended: "1.0" },
+  trendAccelScaleDown: { desc: "A pure multiplier applied to calculated deceleration when slowing down execution speed in response to negative trends.", typical: "0.5 - 2.0", recommended: "1.0" },
+  intradayAlphaEwmaOldWeight: { desc: "The memory decay parameter used for calculating real-time intraday alpha generation compared to arrival price.", typical: "0.9 - 0.99", recommended: "0.95" },
+  barStructAlpha: { desc: "The assumed alpha generated purely from exploiting the micro-structure and liquidity within individual trading bars.", typical: "0.1 - 1.0", recommended: "0.5" },
+  scaleFactorHi: { desc: "The aggressive pacing multiplier utilized specifically when the engine detects high-confidence favorable market conditions.", typical: "1.0 - 2.0", recommended: "1.2" },
+  scaleFactorLo: { desc: "The passive pacing multiplier utilized specifically when the engine detects highly unfavorable market conditions or wide spreads.", typical: "0.1 - 1.0", recommended: "0.8" },
+  executionScoreHistWeight: { desc: "Balances the influence of historical backtest performance vs real-time performance in the live execution scoring.", typical: "0.1 - 0.9", recommended: "0.5" },
+  lambdaClampLo: { desc: "The absolute minimum boundary for the dynamic Lambda (urgency) parameter to ensure baseline trading continues.", typical: "1.0 - 10.0", recommended: "5.0" },
+  lambdaClampHi: { desc: "The absolute maximum boundary for the dynamic Lambda (urgency) parameter to prevent hyper-aggressive market sweeping.", typical: "20.0 - 100.0", recommended: "50.0" },
+  priceEdgeExponent: { desc: "Determines how aggressively the engine seeks price improvement. Higher values increase sensitivity to small spread variations.", typical: "0.5 - 2.0", recommended: "1.0" },
+  liquidityFactorBase: { desc: "The foundational constant used to normalize real-time order book liquidity against the historical expected baseline.", typical: "0.5 - 2.0", recommended: "1.0" },
+  liquidityFactorScale: { desc: "Controls how aggressively the execution speed scales in direct response to abnormal spikes or drops in order book depth.", typical: "0.5 - 2.0", recommended: "1.0" },
+  deficitPressureScale: { desc: "Determines how aggressively the engine tries to catch up when it falls behind the optimal VWAP execution schedule.", typical: "0.5 - 2.0", recommended: "1.0" },
+  deficitFracClamp: { desc: "The absolute maximum fraction of the remaining unfilled quantity that can be executed in a single catch-up block.", typical: "0.1 - 0.8", recommended: "0.5" },
+  binSmoothingWindow: { desc: "The moving average window size applied to smooth historical volume bins and remove anomalous volume spikes.", typical: "1 - 5", recommended: "3" },
+  minSpacingDenominator: { desc: "Controls the minimum required temporal spacing between discrete child orders within a single trading bin.", typical: "2 - 10", recommended: "4" },
+  strongSignalThreshold: { desc: "The confidence threshold required for the engine to classify a micro-trend signal as definitively 'strong'.", typical: "0.5 - 0.9", recommended: "0.7" },
+  refinementPasses: { desc: "The number of iterative mathematical optimization passes run during pretrade calibration to finalize the volume curve.", typical: "1 - 5", recommended: "2" },
+};
 
 const FIELD_STEP = (key: ParamKey) => (INTEGER_FIELDS.has(key) ? 1 : 0.001);
 
@@ -304,41 +344,14 @@ export default function RuntimeTuningPanel({
     <div className="flex flex-col h-full bg-background">
       {/* Status bar */}
       <div className="px-3 pt-3 pb-2 space-y-2">
-        {noContext ? (
+        {noContext && (
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/8 border border-amber-500/20 rounded-md">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
             <p className="text-[10px] text-amber-400 font-medium">
               Select a client and instrument to tune
             </p>
           </div>
-        ) : (
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-secondary/30 rounded-md border border-border/50">
-            <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={cn(
-                  "w-1.5 h-1.5 rounded-full flex-shrink-0",
-                  loading ? "bg-amber-400 animate-pulse" : "bg-emerald-400",
-                )}
-              />
-              <p
-                className="text-[10px] font-mono text-muted-foreground truncate"
-                title={tuningKey!}
-              >
-                <span className="text-foreground/60">key:</span> {tuningKey}
-              </p>
-            </div>
-            {lastSynced && (
-              <p className="text-[9px] text-muted-foreground/50 flex-shrink-0 ml-2">
-                {lastSynced.toLocaleTimeString("en", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </p>
-            )}
-          </div>
         )}
-
         {/* Dirty indicator */}
         {totalDirty > 0 && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 border border-primary/15 rounded-md">
@@ -429,19 +442,30 @@ export default function RuntimeTuningPanel({
                     <div
                       className={cn("w-1.5 h-1.5 rounded-full", group.dot)}
                     />
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold uppercase tracking-widest",
-                        group.accent,
-                      )}
-                    >
-                      {group.label}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground/40">
+                    <div className="relative group/header flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold uppercase tracking-widest",
+                          group.accent,
+                        )}
+                      >
+                        {group.label}
+                      </span>
+                      <Info className="w-3.5 h-3.5 text-muted-foreground/40 cursor-help" />
+                      
+                      {/* Group Tooltip */}
+                      <div className="absolute left-0 top-full mt-2 w-56 bg-slate-100 border border-slate-300 dark:bg-slate-800 dark:border-slate-700 rounded-lg shadow-xl p-2.5 opacity-0 invisible group-hover/header:opacity-100 group-hover/header:visible transition-all z-50 pointer-events-none">
+                        <p className="text-[10px] text-slate-700 dark:text-slate-300 font-medium leading-relaxed text-left normal-case tracking-normal">
+                          {group.desc}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <span className="text-[9px] text-muted-foreground/40 ml-1">
                       {group.fields.length}
                     </span>
                     {dirtyCount > 0 && (
-                      <span className="px-1 py-px text-[8px] font-bold bg-primary/10 text-primary rounded-sm">
+                      <span className="px-1 py-px text-[8px] font-bold bg-primary/10 text-primary rounded-sm ml-1">
                         {dirtyCount}✦
                       </span>
                     )}
@@ -462,34 +486,33 @@ export default function RuntimeTuningPanel({
                         <div
                           key={field}
                           className={cn(
-                            "rounded-md border transition-all min-w-0",
+                            "rounded-md border transition-all min-w-0 relative group/field hover:z-50",
                             dirty
                               ? "border-primary/30 bg-primary/5"
                               : "border-border/40 bg-secondary/10 hover:bg-secondary/20",
                           )}
                         >
-                          <div className="flex items-start justify-between gap-3 p-2">
-                            <div className="flex items-start gap-2 min-w-0 flex-1">
-                              {dirty && (
-                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1 flex-shrink-0" />
-                              )}
-
-                              <div className="min-w-0 flex-1">
+                          <div className="flex flex-col gap-2 p-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-1.5 min-w-0">
+                                {dirty && (
+                                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1 flex-shrink-0" />
+                                )}
                                 <label
                                   className={cn(
-                                    "block text-[10px] font-mono break-all leading-tight",
+                                    "text-[10px] font-bold leading-tight cursor-help",
                                     dirty
-                                      ? "text-foreground"
-                                      : "text-muted-foreground/80",
+                                      ? "text-primary"
+                                      : "text-foreground",
                                   )}
                                   title={field}
                                 >
-                                  {field}
+                                  {camelToTitle(field)}
                                 </label>
-
-                                <div className="mt-1 text-[9px] text-muted-foreground/40">
-                                  step {FIELD_STEP(field)}
-                                </div>
+                                <Info className="w-3.5 h-3.5 text-muted-foreground/60 cursor-help flex-shrink-0" />
+                              </div>
+                              <div className="text-[9px] font-mono text-muted-foreground/60 flex-shrink-0">
+                                step: {FIELD_STEP(field)}
                               </div>
                             </div>
 
@@ -502,14 +525,28 @@ export default function RuntimeTuningPanel({
                               }
                               disabled={noContext}
                               className={cn(
-                                "w-24 shrink-0 rounded-md border px-2 py-1 bg-background text-[10px] font-mono text-right outline-none transition-all",
-                                "focus:ring-1 focus:ring-primary/30",
+                                "w-full rounded-md border px-2.5 py-1.5 bg-background text-[11px] font-bold font-mono text-right outline-none transition-all shadow-sm",
+                                "focus:ring-2 focus:ring-primary/40 focus:border-primary",
                                 dirty
-                                  ? "border-primary/40 text-primary"
-                                  : "border-border/50 text-foreground",
+                                  ? "border-primary/60 text-primary bg-primary/5"
+                                  : "border-border/80 text-foreground",
                                 "disabled:opacity-30",
                               )}
                             />
+
+                            {/* Tooltip */}
+                            <div className="absolute left-0 bottom-full mb-2 w-64 bg-slate-50 border border-slate-300 dark:bg-slate-800 dark:border-slate-700 rounded-lg shadow-2xl p-3 opacity-0 invisible group-hover/field:opacity-100 group-hover/field:visible transition-all z-30 pointer-events-none">
+                              <p className="text-xs text-slate-900 dark:text-slate-100 font-bold mb-1 leading-tight">{camelToTitle(field)}</p>
+                              <p className="text-[10px] text-slate-700 dark:text-slate-300 font-medium leading-relaxed mb-2.5">{PARAM_METADATA[field]?.desc || "No description available."}</p>
+                              <div className="flex justify-between text-[9px] mt-1 text-slate-600 dark:text-slate-400 font-semibold">
+                                <span>Typical Range:</span>
+                                <span className="font-mono text-slate-800 dark:text-slate-200">{PARAM_METADATA[field]?.typical || "-"}</span>
+                              </div>
+                              <div className="flex justify-between text-[9px] text-slate-600 dark:text-slate-400 font-semibold mt-0.5">
+                                <span>Recommended:</span>
+                                <span className="font-mono text-blue-700 dark:text-blue-400 font-bold">{PARAM_METADATA[field]?.recommended || "-"}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       );

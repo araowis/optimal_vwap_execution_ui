@@ -13,11 +13,13 @@ interface InstrumentConfig {
 }
 
 interface MarketOpenFormProps {
+  clientId?: string;
   onCalibrate?: () => void;
   onLaunch?: () => void;
 }
 
 export default function MarketOpenForm({
+  clientId,
   onCalibrate,
   onLaunch,
 }: MarketOpenFormProps) {
@@ -72,6 +74,7 @@ export default function MarketOpenForm({
 
     try {
       const request = {
+        clientId: clientId || "TRADER_DESK",
         instruments: instruments.map((inst) => ({
           instrumentKey: inst.instrumentKey,
           totalQty: inst.totalQty,

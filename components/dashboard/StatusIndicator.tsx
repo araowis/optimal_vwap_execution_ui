@@ -21,7 +21,11 @@ interface ServiceStatus {
   details?: string;
 }
 
-export default function StatusIndicator() {
+interface StatusIndicatorProps {
+  small?: boolean;
+}
+
+export default function StatusIndicator({ small = false }: StatusIndicatorProps) {
   const [expanded, setExpanded] = useState(false);
   const [statuses, setStatuses] = useState<ServiceStatus[]>([
     {
@@ -186,19 +190,20 @@ export default function StatusIndicator() {
   };
 
   const getStatusIcon = (status: ServiceStatus["status"]) => {
+    const size = small ? "w-3 h-3" : "w-4 h-4";
     switch (status) {
       case "connected":
-        return <CheckCircle className="w-4 h-4" />;
+        return <CheckCircle className={size} />;
       case "disconnected":
-        return <XCircle className="w-4 h-4" />;
+        return <XCircle className={size} />;
       case "error":
-        return <AlertCircle className="w-4 h-4" />;
+        return <AlertCircle className={size} />;
       case "loading":
         return (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <div className={`${size} border-2 border-current border-t-transparent rounded-full animate-spin`} />
         );
       default:
-        return <AlertCircle className="w-4 h-4" />;
+        return <AlertCircle className={size} />;
     }
   };
 
@@ -214,19 +219,21 @@ export default function StatusIndicator() {
     <div className="relative">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="p-2 rounded-lg hover:bg-secondary transition-colors flex items-center gap-2"
+        className={`${
+          small ? "p-1.5 px-2.5 text-xs rounded-md gap-1.5" : "p-2 rounded-lg text-sm gap-2"
+        } hover:bg-secondary transition-colors flex items-center`}
         title="Connection Status"
       >
         {getStatusIcon(overallStatus)}
         <span
-          className={`text-sm font-medium ${getStatusColor(overallStatus)}`}
+          className={`font-semibold ${getStatusColor(overallStatus)}`}
         >
           Status
         </span>
         {expanded ? (
-          <ChevronUp className="w-4 h-4" />
+          <ChevronUp className={small ? "w-3 h-3" : "w-4 h-4"} />
         ) : (
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className={small ? "w-3 h-3" : "w-4 h-4"} />
         )}
       </button>
 

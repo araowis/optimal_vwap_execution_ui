@@ -61,32 +61,27 @@ export default function ClientDropdown({
   );
 
   const getClientSubtitle = (client: Client) => {
-    const meta = client.metadata || {};
-    // Extract metadata values excluding internal JSON structures and logo
-    const metaValues = Object.entries(meta)
-      .filter(
-        ([k, v]) =>
-          k !== "strategyParams" &&
-          k !== "watchlist" &&
-          k !== "logo" &&
-          k !== "domain" &&
-          k !== "sector" &&
-          v,
-      )
-      .map(([_, v]) => v);
-
-    // If domain or sector are defined as root fields on client or metadata, prioritize those
-    const explicitParts = [];
-    if (client.domain || meta.domain)
-      explicitParts.push(client.domain || meta.domain);
-    if (client.sector || meta.sector)
-      explicitParts.push(client.sector || meta.sector);
-    if (explicitParts.length > 0) return explicitParts.join(" • ");
-
-    if (metaValues.length > 0) {
-      return metaValues.slice(0, 2).join(" • "); // Show up to 2 dynamic metadata values
+    const parts: string[] = [];
+    if (client.riskProfileId) {
+      parts.push(client.riskProfileId);
     }
-    return client.id;
+    const meta = client.metadata || {};
+    if (meta.deskCode) {
+      parts.push(`Desk: ${meta.deskCode}`);
+    }
+    if (meta.team) {
+      parts.push(`Team: ${meta.team}`);
+    }
+    if (client.capitalLimit) {
+      parts.push(`Cap: ₹${(client.capitalLimit).toLocaleString("en-IN")}`);
+    }
+    if (client.defaultLambda !== undefined && client.defaultLambda !== null) {
+      parts.push(`λ: ${client.defaultLambda}`);
+    }
+    if (client.defaultNBins !== undefined && client.defaultNBins !== null) {
+      parts.push(`Bins: ${client.defaultNBins}`);
+    }
+    return parts.join(" • ");
   };
 
   const getApiFormatClient = (c: Client | null) => {

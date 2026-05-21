@@ -20,6 +20,7 @@ interface PretradeChartsProps {
 
 type PretradeGraphType =
   | "eXt"
+  | "xStar"
   | "varXt"
   | "sigma2t"
   | "muT"
@@ -38,6 +39,7 @@ const graphLabels: Record<string, string> = {
 
 const graphColors: Record<PretradeGraphType, string> = {
   eXt: "#f59e0b",
+  xStar: "#10b981",
   varXt: "#8b5cf6",
   sigma2t: "#ec4899",
   muT: "#06b6d4",
@@ -49,7 +51,7 @@ export default function PretradeCharts({
   pretradeData,
   liveCalibration,
 }: PretradeChartsProps) {
-  const [selectedGraph, setSelectedGraph] = useState<string>("eXt");
+  const [selectedGraph, setSelectedGraph] = useState<PretradeGraphType>("eXt");
 
   const chartData = useMemo(() => {
     if (!pretradeData && !liveCalibration) return [];
@@ -81,7 +83,7 @@ export default function PretradeCharts({
 
   const maxValue = useMemo(() => {
     if (!pretradeData) return 0;
-    const values = chartData.map((d) => d[selectedGraph]);
+    const values = chartData.map((d) => d[selectedGraph as keyof typeof d] as number);
     return Math.max(...values);
   }, [chartData, selectedGraph, pretradeData]);
 
@@ -103,7 +105,7 @@ export default function PretradeCharts({
         <div className="relative flex-1 bg-secondary rounded-md border border-border hover:border-primary/50 transition-colors">
           <select
             value={selectedGraph}
-            onChange={(e) => setSelectedGraph(e.target.value)}
+            onChange={(e) => setSelectedGraph(e.target.value as PretradeGraphType)}
             className="w-full text-[11px] bg-transparent pl-3 pr-2 py-1.5 cursor-pointer outline-none text-foreground font-medium"
           >
             {Object.entries(graphLabels).map(([key, label]) => {

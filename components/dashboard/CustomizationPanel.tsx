@@ -52,7 +52,7 @@ export default function CustomizationPanel({
     onPreferencesChange(updated);
   };
 
-  const handleBandColorChange = (colorKey: string, color: string) => {
+  const handleBandColorChange = (colorKey: string, color: string | number) => {
     const updated = {
       ...preferences,
       bandColor: {

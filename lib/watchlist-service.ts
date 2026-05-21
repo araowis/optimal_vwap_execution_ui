@@ -7,8 +7,7 @@ import {
   Watchlist,
 } from "./watchlist-types";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const BASE_URL = "/api/vwap-server";
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {

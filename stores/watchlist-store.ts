@@ -301,10 +301,15 @@ export const useWatchlistStore = create<WatchlistStore>((set) => ({
     try {
       set({ loading: true, error: null });
 
-      const updated = await removeInstrument(
+      await removeInstrument(
         clientId,
         watchlistId,
         instrumentKey
+      );
+
+      const updated = await getWatchlist(
+        clientId,
+        watchlistId
       );
 
       set((state) => ({
