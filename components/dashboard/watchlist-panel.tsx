@@ -124,6 +124,7 @@ const isinMap: Record<string, EnrichEntry> = {
   INE917I01010: { sector: "Automobile",                  domain: "bajajauto.com",         name: "Bajaj Auto",           symbol: "BAJAJ-AUTO" },
   INE192A01025: { sector: "Banking & Finance",           domain: "indusind.com",          name: "IndusInd Bank",        symbol: "INDUSINDBK" },
   INE795G01014: { sector: "Banking & Finance",           domain: "indusind.com",          name: "IndusInd Bank",        symbol: "INDUSINDBK" },
+  INE095A01012: { sector: "Banking & Finance",           domain: "indusind.com",          name: "IndusInd Bank",        symbol: "INDUSINDBK" },
   INE465A01025: { sector: "Manufacturing",               domain: "bharatforge.com",       name: "Bharat Forge",         symbol: "BHARATFORG" },
   INE196A01026: { sector: "Manufacturing",               domain: "bharatforge.com",       name: "Bharat Forge",         symbol: "BHARATFORG" },
   INE970X01018: { sector: "Hospitality",                 domain: "lemontreehotels.com",   name: "Lemon Tree Hotels",    symbol: "LEMONTREE" },
@@ -277,8 +278,9 @@ export default function WatchlistPanel({
 
           // 2. Fetch from Clearbit API search
           try {
-            const cleanSym = sym.replace(/\s+/g, "");
-            const cbRes = await fetch(`/api/clearbit/companies/suggest?query=${encodeURIComponent(cleanSym)}`);
+            const rawName = inst.name || inst.tradingSymbol || sym;
+            const searchName = rawName.replace(/\s+(LIMITED|LTD|EQ|LTD\.|CORP|CORPORATION)\b/gi, "").trim();
+            const cbRes = await fetch(`/api/clearbit/companies/suggest?query=${encodeURIComponent(searchName)}`);
             if (cbRes.ok) {
               const cbData = await cbRes.json();
               if (cbData && cbData.length > 0) {
@@ -420,8 +422,9 @@ export default function WatchlistPanel({
             
             // Try fetching Clearbit suggestions
             try {
-              const cleanSym = sym.replace(/\s+/g, "");
-              const cbRes = await fetch(`/api/clearbit/companies/suggest?query=${encodeURIComponent(cleanSym)}`);
+              const rawName = inst.name || inst.trading_symbol || sym;
+              const searchName = rawName.replace(/\s+(LIMITED|LTD|EQ|LTD\.|CORP|CORPORATION)\b/gi, "").trim();
+              const cbRes = await fetch(`/api/clearbit/companies/suggest?query=${encodeURIComponent(searchName)}`);
               const cbData = await cbRes.json();
               if (cbData && cbData.length > 0) {
                 return {
@@ -480,12 +483,16 @@ export default function WatchlistPanel({
       // Cache enrichment data immediately in localStorage to avoid re-fetching
       if (typeof window !== "undefined") {
         try {
+          const finalLogoUrl = instrument.logo || (instrument.domain 
+                  ? `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${instrument.domain}&size=64`
+                  : null);
+
           const cache = JSON.parse(localStorage.getItem('instrumentMetaCache') || '{}');
           cache[instrument.instrument_key] = {
             tradingSymbol: instrument.trading_symbol,
             name: instrument.name,
             sector: instrument.sector || "Equity",
-            logoUrl: instrument.logo,
+            logoUrl: finalLogoUrl,
             domain: instrument.domain
           };
           localStorage.setItem('instrumentMetaCache', JSON.stringify(cache));
@@ -930,6 +937,19 @@ export default function WatchlistPanel({
                       <span className={`text-[9px] px-1 rounded font-bold ${getExchangeBadgeStyle(exchange)}`}>
                         {exchange}
                       </span>
+                      {(instrument.isCalibrated || (instrument as any).is_calibrated) ? (
+                        <div 
+                          className="w-3 h-3 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 text-white shadow-sm" 
+                          title="Calibrated"
+                        >
+                          <Check className="w-2 h-2 stroke-[4]" />
+                        </div>
+                      ) : (
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0 ml-0.5" 
+                          title="Uncalibrated"
+                        />
+                      )}
                     </div>
                     
                     <p className="text-[10px] text-muted-foreground font-sans truncate">
@@ -947,18 +967,18 @@ export default function WatchlistPanel({
                   <div className="min-w-[70px]">
                     {priceData ? (
                       <>
-                        <p className={`text-xs font-bold font-sans tabular-nums transition-colors duration-300 ${
+                        <p className={`text-xs font-bold font-sans tabular-nums transition-all duration-300 ${
                           priceData.tickDirection === 'up' 
-                            ? "text-green-500 scale-[1.02]" 
+                            ? "text-green-400 scale-[1.02] drop-shadow-[0_0_2px_rgba(74,222,128,0.5)]" 
                             : priceData.tickDirection === 'down' 
-                            ? "text-red-500 scale-[1.02]" 
-                            : "text-foreground"
+                            ? "text-red-400 scale-[1.02] drop-shadow-[0_0_2px_rgba(248,113,113,0.5)]" 
+                            : isUp ? "text-green-500" : "text-red-500"
                         }`}>
                           {priceData.ltp.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </p>
-                        <p className={`text-[10px] font-sans font-medium tabular-nums ${isUp ? "text-green-500" : "text-red-500"}`}>
+                        <p className={`text-[10px] font-sans font-medium tabular-nums ${isUp ? "text-green-500/80" : "text-red-500/80"}`}>
                           {isUp ? "+" : ""}{priceData.change.toFixed(2)}
-                          <span className="text-[9px] ml-0.5">({priceData.changePercent.toFixed(2)}%)</span>
+                          <span className="text-[9px] ml-0.5 opacity-80">({priceData.changePercent.toFixed(2)}%)</span>
                         </p>
                       </>
                     ) : (
