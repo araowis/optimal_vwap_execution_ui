@@ -22,6 +22,45 @@ import PriceChart from "./charts/PriceChart";
 import VolumeChart from "./charts/VolumeChart";
 import PretradeCharts from "./charts/PretradeCharts";
 
+
+// ── IST timestamp formatter ───────────────────────────────────────────────────
+// Backend candle timestamps are NSE market times (Asia/Kolkata / IST).
+// Format in IST so the hover-info box always reflects backend time.
+function fmtIST(ts: number, opts: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    ...opts,
+  }).format(ts);
+}
+function fmtISTTime(ts: number): string {
+  return fmtIST(ts, { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+function fmtISTTimeSec(ts: number): string {
+  return fmtIST(ts, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+// IST-aware date/time part extractors — used for filtering & bucketing candles
+// so that market-hour detection and day grouping work correctly regardless of
+// the browser's local timezone.
+const _istParts = (ts: number) =>
+  new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(ts > 1e12 ? ts : ts * 1000);
+
+function istParts(date: Date): { year: number; month: number; day: number; hour: number; minute: number } {
+  const p = _istParts(date.getTime());
+  const get = (type: string) => parseInt(p.find(x => x.type === type)?.value ?? "0", 10);
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
+}
+
+function istDateStr(date: Date): string {
+  // Returns "YYYY-MM-DD" in IST
+  const { year, month, day } = istParts(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 interface ChartPanelProps {
   candles: Candle[];
   chartData: ChartDatapoint[];
@@ -42,6 +81,7 @@ interface ChartPanelProps {
     vwap?: number;
   };
   onPretradeDataChange?: (data: PretradeResponse | null) => void;
+  pretradeData?: PretradeResponse | null;
   backendBuySignals?: BackendBuySignal[];
   liveCalibration?: WSCalibrationMessage | null;
   liveRegime?: WSRegimeMessage | null;
@@ -61,6 +101,7 @@ const ChartPanel = memo(function ChartPanel({
   sector,
   timeframeMode = "ALL",
   onPretradeDataChange,
+  pretradeData = null,
   onTimeframeChange,
   mode = "backtest",
   realtimePriceUpdate,
@@ -71,9 +112,7 @@ const ChartPanel = memo(function ChartPanel({
   vwapWsConnecting = false,
 }: ChartPanelProps) {
   const [displayData, setDisplayData] = useState<ChartDatapoint[]>([]);
-  const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(
-    null,
-  );
+
   const [hoveredCandle, setHoveredCandle] = useState<number | null>(null);
   const [clickedCandle, setClickedCandle] = useState<number | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>("");
@@ -92,13 +131,12 @@ const ChartPanel = memo(function ChartPanel({
     for (const c of candles) {
       const d = c.timestamp;
       if (timeframeMode === "DAY") {
-        keys.add(d.toISOString().slice(0, 10));
+        keys.add(istDateStr(d));
       } else if (timeframeMode === "MONTH") {
-        keys.add(
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-        );
+        const { year, month } = istParts(d);
+        keys.add(`${year}-${String(month).padStart(2, "0")}`);
       } else if (timeframeMode === "YEAR") {
-        keys.add(String(d.getFullYear()));
+        keys.add(String(istParts(d).year));
       } else if (timeframeMode === "WEEK") {
         const tmp = new Date(d);
         tmp.setHours(0, 0, 0, 0);
@@ -141,9 +179,9 @@ const ChartPanel = memo(function ChartPanel({
     if (candles.length === 0) return [] as Candle[];
 
     const isDailyCandle = (date: Date) => {
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      return hours === 0 && minutes === 0;
+      // Midnight in IST = a daily candle from the backend
+      const { hour, minute } = istParts(date);
+      return hour === 0 && minute === 0;
     };
 
     const allDaily = candles.every((c) => isDailyCandle(c.timestamp));
@@ -187,14 +225,12 @@ const ChartPanel = memo(function ChartPanel({
     }
 
     const isMarketHour = (date: Date) => {
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-
       if (timeframeMode === "ALL") return true;
-
+      // NSE market hours are 09:15–15:30 IST — must compare in IST
+      const { hour, minute } = istParts(date);
       return (
-        (hours > 9 || (hours === 9 && minutes >= 15)) &&
-        (hours < 15 || (hours === 15 && minutes <= 30))
+        (hour > 9 || (hour === 9 && minute >= 15)) &&
+        (hour < 15 || (hour === 15 && minute <= 30))
       );
     };
 
@@ -205,7 +241,8 @@ const ChartPanel = memo(function ChartPanel({
     if (timeframeMode === "ALL" || !selectedKey) return baseCandles;
 
     const matches = (d: Date) => {
-      const dateStr = d.toISOString().slice(0, 10);
+      // Use IST date string so day boundaries are correct for NSE data
+      const dateStr = istDateStr(d);
       if (timeframeMode === "DAY") return dateStr === selectedKey;
       if (timeframeMode === "MONTH") return dateStr.slice(0, 7) === selectedKey;
       if (timeframeMode === "YEAR") return dateStr.slice(0, 4) === selectedKey;
@@ -451,30 +488,7 @@ const ChartPanel = memo(function ChartPanel({
     });
   }, [realtimePriceUpdate, mode, customizationPrefs]);
 
-  // Fetch pretrade data when instrument key changes
-  useEffect(() => {
-    if (!instrumentKey || mode === 'backtest') {
-      setPretradeData(null);
-      onPretradeDataChange?.(null);
-      return;
-    }
 
-    const fetchPretrade = async () => {
-      try {
-        const isHealthy = await vwapServerService.healthCheck();
-        if (!isHealthy) return;
-        const data = await vwapServerService.getPretrade(instrumentKey, 375);
-        setPretradeData(data);
-        onPretradeDataChange?.(data);
-      } catch {
-        // Pretrade not yet available (instrument not calibrated) — silently ignore
-        setPretradeData(null);
-        onPretradeDataChange?.(null);
-      }
-    };
-
-    fetchPretrade();
-  }, [instrumentKey, mode, onPretradeDataChange]);
 
   const sampledDisplayData = useMemo(() => {
     if (displayData.length <= visibleDataPoints) return displayData;
@@ -486,11 +500,8 @@ const ChartPanel = memo(function ChartPanel({
     if (backendBuySignals.length > 0) {
       const signalTimes = new Set(backendBuySignals.map((s) => s.time));
       displayData.forEach((d, idx) => {
-        const timeStr = d.candle.timestamp.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        });
+        // Use IST HH:mm to match backend signal times
+        const timeStr = fmtISTTime(d.candle.timestamp.getTime());
         if (signalTimes.has(timeStr)) {
           signalIndices.add(idx);
         }
@@ -988,11 +999,8 @@ function DatapointInfo({
   const { candle, vwapData, deviationPercentage } = datapoint;
   const isUp = candle.close >= candle.open;
 
-  const timeStr = candle.timestamp.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  // Match signal by IST HH:mm — backend signal times are always in IST
+  const timeStr = fmtISTTime(candle.timestamp.getTime());
   const sig = backendSignals.find((s) => s.time === timeStr);
 
   return (
@@ -1004,11 +1012,7 @@ function DatapointInfo({
             Time
           </p>
           <p className="text-sm font-bold text-foreground">
-            {candle.timestamp.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
+            {fmtISTTimeSec(candle.timestamp.getTime())}
           </p>
         </div>
 

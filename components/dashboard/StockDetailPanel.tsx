@@ -215,12 +215,12 @@ export default function StockDetailPanel({
                   </span>
                 </div>
               </div>
-              <div className="flex justify-between">
+              {/* <div className="flex justify-between">
                 <span className="text-muted-foreground">Intraday Alpha</span>
                 <span className="text-foreground font-medium">
-                  {(liveCalibration.intradayAlpha * 10000).toFixed(2)} bps
+                  {(liveCalibration.intradayAlpha).toFixed(2)} bps
                 </span>
-              </div>
+              </div> */}
               <div className="mt-2 pt-2 border-t border-blue-500/10">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">

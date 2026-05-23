@@ -1,4 +1,4 @@
-​'use client';
+'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './Header';
@@ -7,7 +7,6 @@ import ParametersPanel from './ParametersPanel';
 import ChartPanel from './ChartPanel';
 import BenchmarkingPanel from './BenchmarkingPanel';
 import ExecutionSummary from './ExecutionSummary';
-import CustomizationPanel from './CustomizationPanel';
 import StockDetailPanel from './StockDetailPanel';
 import MarketOpenForm from './MarketOpenForm';
 import LiveTradingPanel from './LiveTradingPanel';
@@ -53,6 +52,10 @@ export default function DashboardLayout({
   customizationPrefs,
   onPreferencesChange,
 }: DashboardLayoutProps) {
+  const {
+    watchlists,
+    fetchWatchlists,
+  } = useWatchlistStore();
   const [candles, setCandles] = useState<Candle[]>([]);
   const [chartData, setChartData] = useState<ChartDatapoint[]>([]);
   const [backtestResults, setBacktestResults] = useState<BacktestResult | null>(null);
@@ -70,12 +73,12 @@ export default function DashboardLayout({
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationMessage, setCalibrationMessage] = useState('');
   const [realtimePriceUpdate, setRealtimePriceUpdate] =
-  useState<{
-    ltp: number;
-    timestamp: number;
-    volume?: number;
-    vwap?: number;
-  } | undefined>(undefined);
+    useState<{
+      ltp: number;
+      timestamp: number;
+      volume?: number;
+      vwap?: number;
+    } | undefined>(undefined);
   const [pretradeData, setPretradeData] = useState<PretradeResponse | null>(null);
 
   // Client Management State
@@ -273,7 +276,7 @@ export default function DashboardLayout({
       console.error('Failed to fetch tuning profiles from server', e);
     }
   }, []);
-  
+
 
   useEffect(() => {
     fetchClients();
@@ -504,26 +507,28 @@ export default function DashboardLayout({
     autoConnect: true,
     handlers: {
       onSignal: (msg) => {
-        // Build composite key from the two separate WS fields
-        const compositeKey = `${msg.clientId}::${msg.instrument}`;
+        // Build composite key from the two separate WS fields safely
+        const compositeKey = msg.instrument.includes('::')
+          ? msg.instrument
+          : `${msg.clientId}::${msg.instrument}`;
 
         const newSignal: BackendBuySignal = {
-  time: msg.marketTime.substring(0, 5),
+          time: msg.marketTime.substring(0, 5),
 
-  execPrice: msg.ltp,
+          execPrice: msg.ltp,
 
-  executedQty: msg.qty,
+          executedQty: msg.qty,
 
-  cumTarget: msg.cumTarget,
+          cumTarget: msg.cumTarget,
 
-  xStar: msg.xStar,
+          xStar: msg.xStar,
 
-  binIdx: msg.binIdx,
+          binIdx: msg.binIdx,
 
-  // tNorm: msg.tNorm, // focus here if buy signals send these two via ws then turn these on... Also turn them on in types.ts
+          // tNorm: msg.tNorm, // focus here if buy signals send these two via ws then turn these on... Also turn them on in types.ts
 
-  // qtyToBuy: msg.qtyToBuy,
-};
+          // qtyToBuy: msg.qtyToBuy,
+        };
 
         setSignalsMap(prev => {
           const updatedSignals = [...(prev[compositeKey] || []), newSignal];
@@ -546,7 +551,9 @@ export default function DashboardLayout({
         }
       },
       onCalibration: (msg) => {
-        const compositeKey = `${msg.clientId}::${msg.instrument}`;
+        const compositeKey = msg.instrument.includes('::')
+          ? msg.instrument
+          : `${msg.clientId}::${msg.instrument}`;
 
         setCalibrationMap(prev => ({ ...prev, [compositeKey]: msg }));
 
@@ -558,7 +565,9 @@ export default function DashboardLayout({
         }
       },
       onRegime: (msg) => {
-        const compositeKey = `${msg.clientId}::${msg.instrument}`;
+        const compositeKey = msg.instrument.includes('::')
+          ? msg.instrument
+          : `${msg.clientId}::${msg.instrument}`;
         const selectedKey = selectedClient && selectedWatchlistStock
           ? `${selectedClient.id}::${selectedWatchlistStock.instrument_key}`
           : null;
@@ -611,34 +620,127 @@ export default function DashboardLayout({
   // REST polling fallback for realtime price updates (keeps chart updating even if WS doesn't stream)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ── Realtime candle polling ─────────────────────────────────────────────────
+  //
+  // Strategy:
+  //   PRIMARY  — instrument is calibrated → poll getMarketDataLatest every second
+  //              and update `candles` directly:
+  //                • same minute  → update last candle in-place (live bar building)
+  //                • new minute   → append completed bar, start fresh current bar
+  //   FALLBACK — instrument not calibrated / backend unavailable → Upstox historical
+  //              candles were already loaded in handleWatchlistStockSelect; we just
+  //              drive realtimePriceUpdate via Upstox quote polling so ChartPanel
+  //              can tick the live bar (existing behaviour, backtest untouched).
+  //
+  // This effect ONLY runs in realtime mode and never touches backtest state.
+  // ────────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    // Clear any existing interval
+    // Clear any existing interval on every run
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
 
-    // Backend polling for latest market data (1 second interval)
+    // ── PRIMARY: backend candles path ──────────────────────────────────────
     if (mode === 'realtime' && selectedWatchlistStock?.instrument_key && isBackendDataLive) {
-      pollingIntervalRef.current = setInterval(async () => {
+      const instrumentKey = selectedWatchlistStock.instrument_key;
+
+      // Helper: extract the IST minute-bucket key from a raw backend timestamp.
+      // Backend timestamps are NSE market times; we must bucket in IST so that
+      // minute boundaries align with what the backend considers a new bar.
+      // Using getHours()/getMinutes() would give local-timezone buckets which
+      // are wrong for any browser not running in IST (Asia/Kolkata).
+      const istMinuteFmt = new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hour12: false,
+      });
+      const minuteKey = (ts: number): string => {
+        // Normalise to ms — backend may send seconds or milliseconds
+        const ms = ts > 1e12 ? ts : ts * 1000;
+        // Format in IST and use the formatted string as the bucket key
+        return istMinuteFmt.format(ms);
+      };
+
+      // Helper: map a raw backend candle to our Candle shape.
+      // The Date object stores the correct UTC epoch; display is handled by
+      // fmtIST() in PriceChart/ChartPanel — no timezone mangling here.
+      const mapCandle = (c: any): Candle => ({
+        timestamp: new Date(c.timestamp > 1e12 ? c.timestamp : c.timestamp * 1000),
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+        vwap: c.vwap,
+        oi: 0,
+      });
+
+      const poll = async () => {
         try {
-          const res = await vwapServerService.getMarketDataLatest(selectedWatchlistStock.instrument_key);
-          if (res && res.current) {
-            handlePriceUpdate({
-              ltp: res.current.close,
-              timestamp: res.current.timestamp,
-              volume: res.current.volume,
-              vwap: res.current.vwap,
-            });
-          }
-        } catch (e) {
-          // Backend not returning latest for this stock
+          const res = await vwapServerService.getMarketDataLatest(instrumentKey);
+          if (!res || !res.current) return;
+
+          const incoming = res.current;
+          const incomingMinute = minuteKey(incoming.timestamp);
+
+          setCandles(prev => {
+            if (prev.length === 0) {
+              // No base candles yet — initialise from the current tick
+              return [mapCandle(incoming)];
+            }
+
+            const lastCandle = prev[prev.length - 1];
+            const lastMinute = minuteKey(lastCandle.timestamp.getTime());
+
+            if (incomingMinute === lastMinute) {
+              // ── Same minute: update the live bar in-place ──────────────
+              const updated: Candle = {
+                ...lastCandle,
+                high: Math.max(lastCandle.high, incoming.high ?? incoming.close),
+                low: Math.min(lastCandle.low, incoming.low ?? incoming.close),
+                close: incoming.close,
+                volume: incoming.volume ?? lastCandle.volume,
+                vwap: incoming.vwap ?? lastCandle.vwap,
+              };
+              return [...prev.slice(0, -1), updated];
+            } else {
+              // ── New minute: the current bar is complete, append it,
+              //    then start a fresh live bar from the incoming tick ──────
+              const newBar: Candle = {
+                timestamp: new Date(incoming.timestamp > 1e12 ? incoming.timestamp : incoming.timestamp * 1000),
+                open: incoming.open ?? incoming.close,
+                high: incoming.high ?? incoming.close,
+                low: incoming.low ?? incoming.close,
+                close: incoming.close,
+                volume: incoming.volume ?? 0,
+                vwap: incoming.vwap,
+                oi: 0,
+              };
+              return [...prev, newBar];
+            }
+          });
+        } catch {
+          // Backend temporarily unavailable — silently skip this tick
         }
-      }, 1000);
-      return;
+      };
+
+      poll(); // immediate first fetch
+      pollingIntervalRef.current = setInterval(poll, 1000);
+
+      return () => {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      };
     }
 
-    // Don't poll Upstox if WebSocket is connected or not in realtime mode
+    // ── FALLBACK: Upstox quote polling (instrument not calibrated) ─────────
+    // This keeps realtimePriceUpdate flowing so ChartPanel ticks the live bar
+    // using the existing tick-based mechanism.
+
     if (mode !== 'realtime' || !upstoxAccessToken || !selectedWatchlistStock?.instrument_key || wsConnected) {
       return;
     }
@@ -646,7 +748,6 @@ export default function DashboardLayout({
     let cancelled = false;
 
     const fetchQuote = async () => {
-      // Skip polling if WebSocket is connected
       if (wsConnected) {
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
@@ -663,7 +764,6 @@ export default function DashboardLayout({
         const result = await response.json();
 
         if (cancelled) return;
-
         if (result?.status !== 'success' || !result?.data) return;
 
         const instrumentData =
@@ -687,7 +787,6 @@ export default function DashboardLayout({
       }
     };
 
-    // Fetch immediately, then poll
     fetchQuote();
     pollingIntervalRef.current = setInterval(fetchQuote, 2500);
 
@@ -698,7 +797,7 @@ export default function DashboardLayout({
         pollingIntervalRef.current = null;
       }
     };
-  }, [mode, upstoxAccessToken, selectedWatchlistStock, wsConnected]);
+  }, [mode, upstoxAccessToken, selectedWatchlistStock, wsConnected, isBackendDataLive]);
 
   // Reset state when switching modes to ensure clean transition
   useEffect(() => {
@@ -739,6 +838,7 @@ export default function DashboardLayout({
     setLiveBuySignals([]);
     setLiveCalibration(null);
     setLiveRegime(null);
+    setPretradeData(null);
 
     if (!upstoxAccessToken) {
       setInstrumentName(stock.name || stock.trading_symbol);
@@ -752,6 +852,26 @@ export default function DashboardLayout({
       setIsBackendDataLive(false);
 
       if (mode === 'realtime') {
+        // Fetch pretrade data on stock selection using composite key
+        try {
+          const isHealthy = await vwapServerService.healthCheck();
+          if (isHealthy) {
+            const clientId = selectedClient?.id || 'TRADER_DESK';
+            const compositeKey = `${clientId}::${stock.instrument_key}`;
+            const pretrade = await vwapServerService.getPretrade(compositeKey, 375);
+            // Guard: only apply if the response belongs to the client+instrument
+            // we requested (protects against stale in-flight responses)
+            if (pretrade.instrumentKey === compositeKey) {
+              setPretradeData(pretrade);
+            } else {
+              console.warn(
+                `[pretrade] Discarding stale response: got ${pretrade.instrumentKey}, expected ${compositeKey}`
+              );
+            }
+          }
+        } catch (err) {
+          console.log('[DEBUG] Pretrade data not available on selection:', err);
+        }
         try {
           console.log('[DEBUG] Attempting to fetch backend candles for:', stock.instrument_key);
           const backendRes = await vwapServerService.getMarketDataCandles(stock.instrument_key);
@@ -854,7 +974,7 @@ export default function DashboardLayout({
       setInstrumentName(stock.name || stock.trading_symbol);
       setCompanyLogo(stock.logoUrl || (stock.company?.domain ? `https://www.google.com/s2/favicons?domain=${stock.company.domain}&sz=64` : ''));
     }
-  }, [mode, upstoxAccessToken]);
+  }, [mode, upstoxAccessToken,selectedClient]);
 
   // Reset real-time update when stock changes
   useEffect(() => {
@@ -1037,7 +1157,7 @@ export default function DashboardLayout({
 
   const handleRunRealtime = async (params: { totalQty: number; nBins: number; lambda: number }) => {
     if (!selectedWatchlistStock?.instrument_key) {
-      alert('Please select a stock from the watchlist first');
+      toast.error('Please select a stock from the watchlist first');
       return;
     }
 
@@ -1060,30 +1180,60 @@ export default function DashboardLayout({
 
       if (response.status === 'calibrated') {
         setCalibrationMessage(`Calibrated ${response.instrumentsCalibrated} instrument(s) successfully`);
-        alert(`Instrument calibrated successfully. You can add more stocks if needed.`);
+        toast.success(`Instrument calibrated successfully. You can add more stocks if needed.`);
+        // Fetch pretrade data immediately after calibration using composite key
+        try {
+          const compositeKey = `${selectedClient?.id || 'TRADER_DESK'}::${selectedWatchlistStock.instrument_key}`;
+          const pretrade = await vwapServerService.getPretrade(compositeKey, 375);
+          setPretradeData(pretrade);
+        } catch (e) {
+          console.error('[DEBUG] Failed to fetch pretrade after calibration:', e);
+        }
+        // Force refresh watchlists to show calibrated badge
+        if (selectedClient?.id) {
+          await fetchWatchlists(selectedClient.id);
+        }
       } else {
         setCalibrationMessage(response.message || 'Calibration failed');
-        alert(response.message || 'Calibration failed');
+        toast.error(response.message || 'Calibration failed');
       }
     } catch (error) {
       console.error('Market open calibration failed:', error);
       setCalibrationMessage('Failed to calibrate. Please try again.');
-      alert(error instanceof Error ? error.message : 'Failed to calibrate');
+      toast.error(error instanceof Error ? error.message : 'Failed to calibrate');
     } finally {
       setIsCalibrating(false);
     }
   };
 
-  const {
-  watchlists,
-  fetchWatchlists,
-} = useWatchlistStore();
+  const handleRefreshAll = useCallback(async () => {
+    if (selectedClient?.id) {
+      await fetchWatchlists(selectedClient.id);
+    }
+    try {
+      await vwapServerService.getMarketStatus();
+    } catch (e) {
+      console.warn("Failed to update market status on refresh", e);
+    }
+    if (mode === 'realtime' && selectedWatchlistStock?.instrument_key) {
+      try {
+        const compositeKey = `${selectedClient?.id || 'TRADER_DESK'}::${selectedWatchlistStock.instrument_key}`;
+        const pretrade = await vwapServerService.getPretrade(compositeKey, 375);
+        setPretradeData(pretrade);
+      } catch (err) {
+        console.log('[DEBUG] Pretrade data not available on refresh:', err);
+        setPretradeData(null);
+      }
+    }
+  }, [selectedClient, mode, selectedWatchlistStock, fetchWatchlists]);
 
-useEffect(() => {
-  if (selectedClient?.id) {
-    fetchWatchlists(selectedClient.id);
-  }
-}, [selectedClient, fetchWatchlists]);
+
+
+  useEffect(() => {
+    if (selectedClient?.id) {
+      fetchWatchlists(selectedClient.id);
+    }
+  }, [selectedClient, fetchWatchlists]);
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
@@ -1124,12 +1274,13 @@ useEffect(() => {
                   </>
                 ) : (
                   <>
-                  {mode === 'realtime' && (
-                    <WatchlistPanel
-                      clientId={selectedClient?.id || ""}
-                      onSelectStock={handleWatchlistStockSelect}
-                    />
-                  )}
+                    {mode === 'realtime' && (
+                      <WatchlistPanel
+                        clientId={selectedClient?.id || ""}
+                        onSelectStock={handleWatchlistStockSelect}
+                        onRefresh={handleRefreshAll}
+                      />
+                    )}
 
                     <DataUploadPanel
                       clientId={selectedClient?.id || ""}
@@ -1146,8 +1297,8 @@ useEffect(() => {
                           // Use selectedWatchlistStock logo if available, otherwise leave blank
                         }
                       }}
-                      // watchlist={selectedClient?.watchlist || []}
-                      // onWatchlistChange={handleWatchlistChange}
+                    // watchlist={selectedClient?.watchlist || []}
+                    // onWatchlistChange={handleWatchlistChange}
                     />
                     <ParametersPanel
                       params={strategyParams}
@@ -1244,7 +1395,14 @@ useEffect(() => {
             timeframeMode={chartTimeframeMode}
             onTimeframeChange={setChartTimeframeMode}
             mode={mode as 'backtest' | 'realtime'}
-            realtimePriceUpdate={realtimePriceUpdate}
+            realtimePriceUpdate={
+              // When backend candles are live, the polling effect updates `candles`
+              // directly (minute-bar logic). Forwarding realtimePriceUpdate here
+              // would cause ChartPanel to double-apply tick updates on top of
+              // already-correct candle state. Only pass it in the Upstox fallback.
+              mode === 'realtime' && isBackendDataLive ? undefined : realtimePriceUpdate
+            }
+            pretradeData={pretradeData}
             onPretradeDataChange={setPretradeData}
             backendBuySignals={[...activeBuySignals, ...liveBuySignals]}
             liveCalibration={liveCalibration}
@@ -1444,4 +1602,4 @@ useEffect(() => {
       )}
     </div>
   );
-} 
+}

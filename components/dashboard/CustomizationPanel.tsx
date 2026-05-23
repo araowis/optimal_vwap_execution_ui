@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { CustomizationPrefs } from "@/lib/types";
+import { PretradeResponse } from "@/lib/vwap-server-service";
 
 interface CustomizationPanelProps {
   preferences: CustomizationPrefs;
   onPreferencesChange: (prefs: CustomizationPrefs) => void;
+  pretradeData?: PretradeResponse | null;
+  liveCalibration?: any | null;
 }
 
 function SettingField({
@@ -32,12 +35,15 @@ function SettingField({
 export default function CustomizationPanel({
   preferences,
   onPreferencesChange,
+  pretradeData,
+  liveCalibration,
 }: CustomizationPanelProps) {
   const [expandedSections, setExpandedSections] = useState({
     chart: true,
     vwap: true,
     volume: false,
     signals: false,
+    pretradeStats: false,
   });
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -521,6 +527,84 @@ export default function CustomizationPanel({
           </div>
         )}
       </div>
+
+      {/* Pretrade Statistics */}
+      {pretradeData && (
+        <div className="border border-border rounded-lg">
+          <button
+            onClick={() => toggleSection("pretradeStats")}
+            type="button"
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground text-sm">
+                Pretrade Statistics
+              </span>
+              <span className="px-1.5 py-0.5 bg-green-600/20 text-green-600 dark:text-green-400 rounded text-[10px] font-medium">
+                375 Bins
+              </span>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-muted-foreground transition-transform ${
+                expandedSections.pretradeStats ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {expandedSections.pretradeStats && (
+            <div className="border-t border-border bg-background px-4 py-4 space-y-2.5 animate-in fade-in-0 slide-in-from-top-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Historical Days</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.histDayCount}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Avg Daily Volume</span>
+                <span className="text-foreground font-semibold">
+                  {(pretradeData.stats.avgDailyVolume / 1000000).toFixed(2)}M
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">K (Lambda)</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.K.toFixed(4)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Sigma² Hat</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.sigma2Hat.toFixed(6)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Avg Daily Return %</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.avgDailyRetPct.toFixed(4)}%
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Residual Risk</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.residualRisk.toFixed(6)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Total Mins</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.totalBins}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Output Mins</span>
+                <span className="text-foreground font-semibold">
+                  {pretradeData.stats.outputBins}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

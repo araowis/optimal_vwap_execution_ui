@@ -110,19 +110,16 @@ class VWAPServerService {
   // ── Analytics ────────────────────────────────────────────────────────────
 
   /**
-   * GET /api/analytics/pretrade — Get pretrade baseline arrays.
-   *
-   * @param instrumentKey  Either a composite key ("clientId::NSE_EQ|...") or a bare
-   *                       instrument key. The backend only accepts the bare key —
-   *                       this method strips the "clientId::" prefix automatically.
-   */
+ * GET /api/analytics/pretrade — Get pretrade baseline arrays.
+ *
+ * @param instrumentKey  Composite key in the form "clientId::NSE_EQ|ISIN"
+ *                       (e.g. "TRADER_DESK::NSE_EQ|INE040A01034").
+ *                       The backend requires the composite form to scope
+ *                       the pretrade arrays to the correct client session.
+ */
   async getPretrade(instrumentKey: string, bins: number = 375): Promise<PretradeResponse> {
-    // Strip composite prefix: "clientId::NSE_EQ|..." → "NSE_EQ|..."
-    const bareKey = instrumentKey.includes('::')
-      ? instrumentKey.split('::').slice(1).join('::')
-      : instrumentKey;
     const response = await this.fetch(
-      `/api/analytics/pretrade?instrumentKey=${encodeURIComponent(bareKey)}&bins=${bins}`
+      `/api/analytics/pretrade?instrumentKey=${encodeURIComponent(instrumentKey)}&bins=${bins}`
     );
     return response.json();
   }

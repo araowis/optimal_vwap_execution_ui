@@ -22,6 +22,24 @@ import {
   BackendBuySignal,
 } from "@/lib/types";
 
+
+// ── IST timestamp formatter ───────────────────────────────────────────────────
+// Backend candle timestamps are NSE market times (Asia/Kolkata / IST).
+// Always format in IST so XAxis, Tooltip, and Brush reflect backend time
+// regardless of the browser's local timezone.
+function fmtIST(ts: number, opts: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    ...opts,
+  }).format(ts);
+}
+function fmtISTTime(ts: number): string {
+  return fmtIST(ts, { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+function fmtISTDate(ts: number): string {
+  return fmtIST(ts, { month: "short", day: "numeric" });
+}
+
 // ── Custom green "pin" dot for backend buy signals ────────────────────────────
 function BackendSignalDot(props: any) {
   const { cx, cy, payload, markerType = "PIN", markerSize = 8 } = props;
@@ -111,10 +129,11 @@ function PriceTooltip({ active, payload, label, coordinate }: any) {
   const row = payload[0]?.payload;
   if (!row) return null;
 
-  const ts =
+  // Use raw epoch ms from the candle — format in IST (backend's timezone)
+  const tsMs =
     typeof row.timestamp === "number"
-      ? new Date(row.timestamp)
-      : new Date(label);
+      ? row.timestamp
+      : new Date(label).getTime();
   const isUp = row.close >= row.open;
   const priceColor = isUp ? "#10b981" : "#f43f5e";
   const signals: BackendBuySignal[] = row.backendSignalMetaList ?? [];
@@ -146,11 +165,7 @@ function PriceTooltip({ active, payload, label, coordinate }: any) {
           marginBottom: 6,
         }}
       >
-        {ts.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })}
+        {fmtISTTime(tsMs)}
       </div>
 
       {/* Buy signal detail panel(s) */}
@@ -460,8 +475,8 @@ const PriceChart = React.memo(function PriceChart({
         id: `candle-${index}-${d.candle.timestamp.getTime()}-${d.candle.close}`,
         timestamp: d.candle.timestamp.getTime(),
         timestampStr: isDaily
-          ? d.candle.timestamp.toLocaleDateString()
-          : d.candle.timestamp.toLocaleTimeString(),
+          ? fmtIST(d.candle.timestamp.getTime(), { year: "numeric", month: "short", day: "numeric" })
+          : fmtISTTime(d.candle.timestamp.getTime()),
         isDaily,
         open: d.candle.open,
         high: d.candle.high,
@@ -552,10 +567,9 @@ const PriceChart = React.memo(function PriceChart({
     });
 
     return chartDataWithVolume.map((d) => {
-      const date = new Date(d.timestamp);
-      const hh = String(date.getHours()).padStart(2, "0");
-      const mm = String(date.getMinutes()).padStart(2, "0");
-      const sigs = [...(signalByTime.get(`${hh}:${mm}`) || [])];
+      // Match signals using IST HH:mm — backend signal times are always IST
+      const hhmm = fmtISTTime(d.timestamp);
+      const sigs = [...(signalByTime.get(hhmm) || [])];
 
       const dedupedSigs = sigs.filter((sig, idx, arr) => {
         return (
@@ -709,18 +723,9 @@ const PriceChart = React.memo(function PriceChart({
             tickFormatter={(value) => {
               const candle = chartDataWithSignals[value];
               if (!candle) return "";
-              const date = new Date(candle.timestamp);
-              const timeStr = date.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              });
+              const timeStr = fmtISTTime(candle.timestamp);
               if (isMultiDay) {
-                const dayStr = date.toLocaleDateString([], {
-                  month: "short",
-                  day: "numeric",
-                });
-                return `${dayStr} ${timeStr}`;
+                return `${fmtISTDate(candle.timestamp)} ${timeStr}`;
               }
               return timeStr;
             }}
@@ -1115,14 +1120,9 @@ const PriceChart = React.memo(function PriceChart({
             fillOpacity={0.15}
             travellerWidth={10}
             tickFormatter={(value) => {
-              const date = new Date(value);
-              const timeStr = date.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              });
+              const timeStr = fmtISTTime(value);
               if (isMultiDay) {
-                return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${timeStr}`;
+                return `${fmtISTDate(value)} ${timeStr}`;
               }
               return timeStr;
             }}

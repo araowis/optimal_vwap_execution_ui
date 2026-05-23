@@ -9,6 +9,7 @@ import {
   Loader2,
   Grid,
   Building2,
+  RefreshCw,
 } from "lucide-react";
 
 import { useWatchlistStore } from "@/stores/watchlist-store";
@@ -24,6 +25,7 @@ import { toast } from "sonner";
 interface WatchlistPanelProps {
   clientId: string;
   onSelectStock: (stock: any) => void;
+  onRefresh?: () => void;
 }
 
 type EnrichEntry = { sector: string; domain: string; name: string; symbol: string };
@@ -169,8 +171,24 @@ const getAvatarColor = (name: string) => {
 export default function WatchlistPanel({
   clientId,
   onSelectStock,
+  onRefresh,
 }: WatchlistPanelProps) {
   const { watchlists, loading, error, fetchWatchlists } = useWatchlistStore();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!clientId) return;
+    setIsRefreshing(true);
+    try {
+      await fetchWatchlists(clientId);
+      onRefresh?.();
+      toast.success("Watchlist data refreshed");
+    } catch (err) {
+      toast.error("Failed to refresh watchlist data");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Watchlist selection
   const [activeWatchlistId, setActiveWatchlistId] = useState<string | null>(null);
@@ -662,27 +680,40 @@ export default function WatchlistPanel({
       
       {/* ── Sticky Top Search bar ──────────────────────────────────────── */}
       <div className="p-3 border-b border-border bg-card/90 sticky top-0 z-30 flex flex-col gap-2">
-        <div className="relative group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search & Add Instrument..."
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-background/50 hover:bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-md transition-all placeholder:text-muted-foreground outline-none font-sans"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setSearchResults([]);
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-secondary text-muted-foreground transition-all"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search & Add Instrument..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-background/50 hover:bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-md transition-all placeholder:text-muted-foreground outline-none font-sans"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-secondary text-muted-foreground transition-all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className={`p-1.5 bg-secondary hover:bg-secondary/80 border border-border hover:border-primary/40 rounded-md text-muted-foreground hover:text-foreground transition-all duration-200 ${
+              isRefreshing ? "opacity-75" : ""
+            }`}
+            title="Refresh Watchlists & Pretrade Data"
+            type="button"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+          </button>
         </div>
 
         {/* Search Results Dropdown overlay */}
