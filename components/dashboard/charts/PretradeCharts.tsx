@@ -28,13 +28,13 @@ type PretradeGraphType =
   | "avgVolumePerBar";
 
 const graphLabels: Record<string, string> = {
-  eXt: "Expected Volume (eXt)",
-  xStar: "Optimal Schedule (xStar)",
-  varXt: "Variance (varXt)",
-  sigma2t: "Sigma² (sigma2t)",
-  muT: "Mean (muT)",
-  executionScore: "Execution Score",
-  avgVolumePerBar: "Avg Volume Per Bar",
+  eXt: "Expected Volume (eXt) - Overall Market volume movements for this instrument.",
+  xStar: "Optimal Schedule (xStar) - The optimal trading schedule based on the order set.",
+  varXt: "Variance (varXt) - The variance of the expected volume, indicating uncertainty in the market.",
+  sigma2t: "Sigma² (sigma2t) - The variance of the execution price, reflecting market volatility.",
+  muT: "Mean (muT) - One of the signals that checks, pretrade, if the market will be uptrending or downtrending.",
+  executionScore: "Execution Score - Whether it is a good time to buy.",
+  avgVolumePerBar: "Avg Volume Per Bar - The average volume traded within each time bar, historically.",
 };
 
 const graphColors: Record<PretradeGraphType, string> = {
